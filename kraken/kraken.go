@@ -1,12 +1,12 @@
 package kraken
 
 import (
-	//"fmt"
-	log "github.com/sirupsen/logrus"
-	//	"reflect"
-	//	"strconv"
+	"fmt"
+	"reflect"
+	"strconv"
 
-	// "github.com/beldur/kraken-go-api-client"
+	"github.com/beldur/kraken-go-api-client"
+	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 )
 
@@ -69,20 +69,19 @@ func stack(c *cli.Context) error {
 	stacklog := log.WithFields(log.Fields{"action": "stack"})
 	stacklog.Info("Stacking some sats")
 
-	return nil
-}
-
-/*
+	// Pair to work on - kraken XXBTZ<FIAT>
 	pair := "X" + crypto + "Z" + c.String("fiat")
 
 	// Get API Object , Balance and Ticker from Kraken
 	api := krakenapi.New(c.String("api-key"), c.String("secret-key"))
 
+	// Get the current balance for api-key/secret-key
 	balance, err := api.Balance()
 	if err != nil {
 		return cli.Exit(fmt.Sprintf("Failed to get Balance: %+v", err), 2)
 	}
 
+	// Get the current ticker for the given PAIR
 	ticker, err := api.Ticker(pair)
 	if err != nil {
 		return cli.Exit(fmt.Sprintf("Failed to get Ticker for pair %s: %+v", pair, err), 2)
@@ -100,23 +99,28 @@ func stack(c *cli.Context) error {
 		"fiatBalance":   balanceFiat,
 	}).Debug("BALANCE")
 
-	// Define Order params
+	// Define params for the Order request
 	ask := ticker.GetPairTickerInfo(pair).Ask[0]
 	//bid := ticker.GetPairTickerInfo(pair).Bid[0]
 	price, err := strconv.ParseFloat(ask, 64)
 	if err != nil {
 		return cli.Exit(fmt.Sprintf("Failed to get Ask price for pair %s: %+v", pair, err), 2)
 	}
+
 	volume := strconv.FormatFloat((c.Float64("amount") / price), 'f', 8, 64)
 	// TODO: If volume < 0.001 then error -this is the minimum kraken order volume
+	if fVolume, _ := strconv.ParseFloat(volume, 64); fVolume < 0.001 {
+		return cli.Exit(fmt.Sprintf("Minimum volume for BTC Order is 0.001 got %s", volume), 1)
+	}
 
 	// TODO support for limit order ?
 	orderType := "market"
 
 	args := make(map[string]string)
+
 	//args["validate"] = strconv.FormatBool(c.Bool("validate"))
-	args["validate"] = "true"
-	args["oflags"] = "fciq" // "buy" button will actually sell the quote currency in exchange for the base currency
+	args["validate"] = "true" // Testing
+	args["oflags"] = "fciq"   // "buy" button will actually sell the quote currency in exchange for the base currency, pay fee in the the quote currenty ( fiat )
 
 	stacklog.WithFields(log.Fields{
 		"pair":       pair,
@@ -128,6 +132,7 @@ func stack(c *cli.Context) error {
 		"orderFlags": args["oflags"],
 	}).Debug("ORDER to execute")
 
+	// Place the Order
 	order, err := api.AddOrder(pair, "buy", orderType, volume, args)
 
 	if err != nil {
@@ -146,7 +151,6 @@ func stack(c *cli.Context) error {
 	//log.Fatal(err)
 	//}
 }
-*/
 
 func withdraw(c *cli.Context) error {
 	wlog := thisLog.WithFields(log.Fields{"action": "withdraw"})
