@@ -77,7 +77,7 @@ func main() {
 		&cli.StringFlag{
 			Name:     "api-key",
 			Usage:    "Exchange Api Key",
-			EnvVars:  []string{"STACKER_KRAKEN_API_KEY"},
+			EnvVars:  []string{"STACKER_API_KEY"},
 			Required: true,
 		},
 		&cli.StringFlag{
@@ -97,13 +97,13 @@ func main() {
 				&cli.Float64Flag{
 					Name:     "amount",
 					Usage:    "Amount of fiat to exchange",
-					EnvVars:  []string{"STACKER_AMOUNT"},
+					EnvVars:  []string{"STACKER_STACK_AMOUNT"},
 					Required: true,
 				},
 				&cli.StringFlag{
 					Name:     "fiat",
 					Usage:    "Fiat to exchange",
-					EnvVars:  []string{"STACKER_FIAT"},
+					EnvVars:  []string{"STACKER_STACK_FIAT"},
 					Required: true,
 				},
 			},
