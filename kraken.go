@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -14,6 +15,8 @@ func krakenCliCommand() ([]*cli.Command, error) {
 
 	const crypto = "XBT"
 	krakenLog := log.WithFields(logrus.Fields{"exchange": "kraken"})
+
+	result.setExchange("kraken")
 
 	cmd := []*cli.Command{
 		{
@@ -54,8 +57,6 @@ func krakenCliCommand() ([]*cli.Command, error) {
 						thisLog := krakenLog.WithFields(logrus.Fields{"action": "stack"})
 						thisLog.Info("Stacking some sats")
 
-						result.success = true
-
 						// Pair to work on - kraken XXBTZ<FIAT>
 						pair := "X" + crypto + "Z" + c.String("fiat")
 
@@ -65,13 +66,17 @@ func krakenCliCommand() ([]*cli.Command, error) {
 						// Get the current balance for api-key/secret-key
 						balance, err := api.Balance()
 						if err != nil {
-							return cli.Exit(fmt.Sprintf("Failed to get Balance: %+v", err), 2)
+							//thisLog.Debug(fmt.Sprintf("Failed to get Balance: %s", err))
+							result.setFailed(err, "Failed to get Balance")
+							return nil
 						}
 
 						// Get the current ticker for the given PAIR
 						ticker, err := api.Ticker(pair)
 						if err != nil {
-							return cli.Exit(fmt.Sprintf("Failed to get Ticker for pair %s: %+v", pair, err), 2)
+							//thisLog.Debug(fmt.Sprintf("Failed to get Ticker for pair %s: %s", pair, err))
+							result.setFailed(err, fmt.Sprintf("Failed to get Ticker for pair %s", pair))
+							return nil
 						}
 
 						// Extract Values from Kraken Responses
@@ -91,13 +96,17 @@ func krakenCliCommand() ([]*cli.Command, error) {
 						//bid := ticker.GetPairTickerInfo(pair).Bid[0]
 						price, err := strconv.ParseFloat(ask, 64)
 						if err != nil {
-							return cli.Exit(fmt.Sprintf("Failed to get Ask price for pair %s: %+v", pair, err), 2)
+							//thisLog.Debug(fmt.Sprintf("Failed to get Ask price for pair %s: %s", pair, err))
+							result.setFailed(err, fmt.Sprintf("Failed to get Ask price for pair %s", pair))
+							return nil
 						}
 
 						volume := strconv.FormatFloat((c.Float64("amount") / price), 'f', 8, 64)
 						// TODO: If volume < 0.001 then error -this is the minimum kraken order volume
 						if fVolume, _ := strconv.ParseFloat(volume, 64); fVolume < 0.001 {
-							return cli.Exit(fmt.Sprintf("Minimum volume for BTC Order is 0.001 got %s", volume), 1)
+							//thisLog.Debug(fmt.Sprintf("Minimum order volume too low >= 0.001, got %s", volume))
+							result.setFailed(errors.New("Minimum order volume too low"), fmt.Sprintf("Minimum volume for BTC Order is 0.001 got %s", volume))
+							return nil
 						}
 
 						// TODO support for limit order ?
@@ -123,13 +132,17 @@ func krakenCliCommand() ([]*cli.Command, error) {
 						order, err := api.AddOrder(pair, "buy", orderType, volume, args)
 
 						if err != nil {
-							return cli.Exit(fmt.Sprintf("Failed to place Order: %+v", err), 2)
+							//thisLog.Debug(fmt.Sprintf("Failed to place Order: %s", err))
+							result.setFailed(err, "Failed to place Order")
+							return nil
 						}
 
 						thisLog.WithFields(logrus.Fields{
 							"description":  order.Description,
 							"transactions": order.TransactionIds,
 						}).Debug("ORDER Placed")
+
+						result.setSuccess(fmt.Sprintf("%#v %#v", order.Description, order.TransactionIds))
 
 						return nil
 

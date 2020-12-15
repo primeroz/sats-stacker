@@ -10,12 +10,13 @@ import (
 )
 
 type operation struct {
+	exchange    string
 	success     bool
 	err         error
 	description string
 }
 
-var result operation
+var result = operation{exchange: "None", success: false, err: nil, description: ""}
 var log = logrus.New()
 
 func init() {
@@ -24,7 +25,7 @@ func init() {
 	log.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
 	})
-	log.SetOutput(os.Stdout)
+	log.SetOutput(os.Stderr)
 	//log.SetLevel(logrus.InfoLevel)
 	log.SetLevel(logrus.DebugLevel)
 }
@@ -68,10 +69,13 @@ func main() {
 		Usage:     "demonstrate available API",
 		UsageText: "sats-stacker - demonstrating the available API",
 		Flags:     flags,
-		// https://stackoverflow.com/questions/16248241/concatenate-two-slices-in-go
-		Commands: append(krakenCmd, binanceCmd...),
+		Commands:  append(krakenCmd, binanceCmd...),
 		After: func(c *cli.Context) error {
-			fmt.Printf("AFTER: %#v", result)
+			fmt.Printf("Fake Notifier for %s: %s\n", result.exchange, result.description)
+
+			if result.err != nil {
+				return cli.Exit(fmt.Sprintf("%s - %s: %s", result.exchange, result.description, result.err), 1)
+			}
 			return nil
 		},
 	}
