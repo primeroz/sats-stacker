@@ -1,16 +1,15 @@
-package binance
+package main
 
 import (
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/urfave/cli/v2"
 )
 
-const crypto = "BTC"
+func binanceCliCommand() ([]*cli.Command, error) {
 
-var thisLog = log.WithFields(log.Fields{"exchange": "binance"})
-
-func GenerateCliCommand() ([]*cli.Command, error) {
+	const crypto = "BTC"
+	binanceLog := log.WithFields(logrus.Fields{"exchange": "binance"})
 
 	cmd := []*cli.Command{
 		{
@@ -45,32 +44,28 @@ func GenerateCliCommand() ([]*cli.Command, error) {
 			},
 			Subcommands: []*cli.Command{
 				{
-					Name:   "stack",
-					Usage:  "stack some sats on Binance",
-					Action: stack,
+					Name:  "stack",
+					Usage: "stack some sats on Binance",
+					Action: func(c *cli.Context) error {
+						thisLog := binanceLog.WithFields(logrus.Fields{"action": "stack"})
+						thisLog.Info("Stacking some sats")
+
+						return nil
+					},
 				},
 				{
-					Name:   "withdraw",
-					Usage:  "withdraw sats from Binance",
-					Action: withdraw,
+					Name:  "withdraw",
+					Usage: "withdraw sats from Binance",
+					Action: func(c *cli.Context) error {
+						thisLog := binanceLog.WithFields(logrus.Fields{"action": "withdraw"})
+						thisLog.Info("Withdrawing some sats")
+
+						return nil
+					},
 				},
 			},
 		},
 	}
 
 	return cmd, nil
-}
-
-func stack(c *cli.Context) error {
-	slog := thisLog.WithFields(log.Fields{"action": "stack"})
-	slog.Info("Stacking some sats")
-
-	return nil
-}
-
-func withdraw(c *cli.Context) error {
-	wlog := thisLog.WithFields(log.Fields{"action": "withdraw"})
-	wlog.Info("Withdrawing some sats")
-
-	return nil
 }

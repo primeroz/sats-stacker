@@ -1,16 +1,33 @@
 package main
 
 import (
-	log "github.com/sirupsen/logrus"
+	"fmt"
+	"github.com/sirupsen/logrus"
 	"os"
 	"time"
 
 	"github.com/urfave/cli/v2"
-	"sats-stacker/binance"
-	"sats-stacker/kraken"
 )
 
-//TODO: struct for return document - so i can push to notifier
+type operation struct {
+	success     bool
+	err         error
+	description string
+}
+
+var result operation
+var log = logrus.New()
+
+func init() {
+
+	// Setup Logging
+	log.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
+	log.SetOutput(os.Stdout)
+	//log.SetLevel(logrus.InfoLevel)
+	log.SetLevel(logrus.DebugLevel)
+}
 
 func main() {
 	flags := []cli.Flag{
@@ -23,23 +40,15 @@ func main() {
 		},
 	}
 
-	// Setup Logging
-	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp: true,
-	})
-	log.SetOutput(os.Stdout)
-	log.SetLevel(log.InfoLevel)
-	log.SetLevel(log.DebugLevel)
-
 	// Setup the App
 	// Kraken Exchange
-	krakenCmd, err := kraken.GenerateCliCommand()
+	krakenCmd, err := krakenCliCommand()
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Binance Exchange
-	binanceCmd, _ := binance.GenerateCliCommand()
+	binanceCmd, err := binanceCliCommand()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -61,6 +70,10 @@ func main() {
 		Flags:     flags,
 		// https://stackoverflow.com/questions/16248241/concatenate-two-slices-in-go
 		Commands: append(krakenCmd, binanceCmd...),
+		After: func(c *cli.Context) error {
+			fmt.Printf("AFTER: %#v", result)
+			return nil
+		},
 	}
 	//app.UseShortOptionHandling = true
 
