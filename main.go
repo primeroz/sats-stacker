@@ -48,7 +48,14 @@ func stack(c *cli.Context) error {
 }
 
 func withdraw(c *cli.Context) error {
-	fmt.Println("Withdrawing Sats")
+	apiKey := c.String("api-key")
+	secretKey := c.String("secret-key")
+	maxFee := c.Float64("max-fee")
+	address := c.String("address")
+
+	result, err := withdrawP.(func(string, string, float64, string) (string, error))(apiKey, secretKey, maxFee, address)
+	fmt.Println(result)
+	fmt.Println(err)
 	return nil
 }
 
@@ -110,7 +117,13 @@ func main() {
 				&cli.Float64Flag{
 					Name:     "max-fee",
 					Usage:    "Max fee in percentage",
-					EnvVars:  []string{"STACKER_MAX_FEE"},
+					EnvVars:  []string{"STACKER_WITHDRAW_MAX_FEE"},
+					Required: true,
+				},
+				&cli.StringFlag{
+					Name:     "address",
+					Usage:    "Address to withdraw to, the actual value will depend on the exchange selected",
+					EnvVars:  []string{"STACKER_WITHDRAW_ADDRESS"},
 					Required: true,
 				},
 			},
@@ -163,6 +176,7 @@ func main() {
 				return cli.Exit(fmt.Sprintf("Failed to lookup Withdraw() function from Exchange plugin: %s", err), 1)
 			}
 
+			// Validate the loaded Symbols
 			_, ok := stackP.(func(string, string, float64, string) (string, error))
 			if !ok {
 				return cli.Exit(fmt.Sprintf("Failed to Assert Stack(string,string,float64,string) function from exchange: %s", exc), 1)
@@ -178,7 +192,6 @@ func main() {
 			return nil
 		},
 	}
-	//app.UseShortOptionHandling = true
 
 	err := app.Run(os.Args)
 	if err != nil {
