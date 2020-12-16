@@ -17,14 +17,14 @@ MAKEFLAGS += --silent
 .PHONY: kraken
 kraken:
 	@echo "  >  Building plugin... kraken"
-	go build $(LDFLAGS) -buildmode=plugin -o kraken/kraken.so kraken/kraken.go
+	go build $(LDFLAGS) -buildmode=plugin -o plugins/kraken.so kraken/kraken.go
 
 .PHONY: binance
 binance:
 	@echo "  >  Building plugin... binance"
-	go build $(LDFLAGS) -buildmode=plugin -o binance/binance.so binance/binance.go
+	go build $(LDFLAGS) -buildmode=plugin -o plugins/binance.so binance/binance.go
 
 #build: $(GOPLUGINS)
 build: kraken binance
 	@echo "  >  Building binary..."
-	go build $(LDFLAGS) -o bin/$(PROJECTNAME) .
+	go build $(LDFLAGS) -o sats-stacker .

@@ -154,9 +154,9 @@ func main() {
 			var pluginPath string
 			switch exc {
 			case "kraken":
-				pluginPath = "./kraken/kraken.so"
+				pluginPath = "./plugins/kraken.so"
 			case "binance":
-				pluginPath = "./binance/binance.so"
+				pluginPath = "./plugins/binance.so"
 			default:
 				return cli.Exit(fmt.Sprintf("Unsupported Exchange: %s", exc), 2)
 			}
