@@ -7,6 +7,7 @@ import (
 	//"strconv"
 	//"github.com/beldur/kraken-go-api-client"
 	//"github.com/sirupsen/logrus"
+	"github.com/urfave/cli/v2"
 )
 
 var crypto string
@@ -17,7 +18,7 @@ func init() {
 	crypto = "XBT"
 }
 
-func Stack(apiKey string, secretKey string, amount float64, fiat string) (result string, err error) {
+func Stack(c *cli.Context) (result string, err error) {
 	fmt.Println("This is kraken stack")
 	//thisLog := krakenLog.WithFields(logrus.Fields{"action": "stack"})
 	//thisLog.Info("Stacking some sats")
@@ -112,7 +113,7 @@ func Stack(apiKey string, secretKey string, amount float64, fiat string) (result
 	//}
 }
 
-func Withdraw(apiKey string, secretKey string, maxFee float64, address string) (result string, err error) {
+func Withdraw(c *cli.Context) (result string, err error) {
 	//thisLog := krakenLog.WithFields(logrus.Fields{"action": "whitdraw"})
 	//thisLog.Info("Whitdrawing some sats")
 

@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"os"
 	"plugin"
 	"time"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/urfave/cli/v2"
 )
@@ -36,24 +37,14 @@ func init() {
 }
 
 func stack(c *cli.Context) error {
-	apiKey := c.String("api-key")
-	secretKey := c.String("secret-key")
-	amount := c.Float64("amount")
-	fiat := c.String("fiat")
-
-	result, err := stackP.(func(string, string, float64, string) (string, error))(apiKey, secretKey, amount, fiat)
+	result, err := stackP.(func(*cli.Context) (string, error))(c)
 	fmt.Println(result)
 	fmt.Println(err)
 	return nil
 }
 
 func withdraw(c *cli.Context) error {
-	apiKey := c.String("api-key")
-	secretKey := c.String("secret-key")
-	maxFee := c.Float64("max-fee")
-	address := c.String("address")
-
-	result, err := withdrawP.(func(string, string, float64, string) (string, error))(apiKey, secretKey, maxFee, address)
+	result, err := withdrawP.(func(*cli.Context) (string, error))(c)
 	fmt.Println(result)
 	fmt.Println(err)
 	return nil
@@ -105,6 +96,13 @@ func main() {
 					Usage:    "Fiat to exchange",
 					EnvVars:  []string{"STACKER_STACK_FIAT"},
 					Required: true,
+				},
+				&cli.StringFlag{
+					Name:    "order-type",
+					Aliases: []string{"type"},
+					Value:   "market",
+					Usage:   "Order type",
+					EnvVars: []string{"STACKER_STACK_ORDER_TYPE"},
 				},
 			},
 			Action: stack,
@@ -177,13 +175,13 @@ func main() {
 			}
 
 			// Validate the loaded Symbols
-			_, ok := stackP.(func(string, string, float64, string) (string, error))
+			_, ok := stackP.(func(*cli.Context) (string, error))
 			if !ok {
-				return cli.Exit(fmt.Sprintf("Failed to Assert Stack(string,string,float64,string) function from exchange: %s", exc), 1)
+				return cli.Exit(fmt.Sprintf("Failed to Assert Stack(*cli.Context) function from exchange: %s", exc), 1)
 			}
-			_, ok = withdrawP.(func(string, string, float64, string) (string, error))
+			_, ok = withdrawP.(func(*cli.Context) (string, error))
 			if !ok {
-				return cli.Exit(fmt.Sprintf("Failed to Assert Withdraw(string,string,float64,string) function from exchange: %s", exc), 1)
+				return cli.Exit(fmt.Sprintf("Failed to Assert Withdraw(*cli.Context) function from exchange: %s", exc), 1)
 			}
 
 			return nil
