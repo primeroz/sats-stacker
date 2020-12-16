@@ -2,70 +2,35 @@ package main
 
 import (
 	"github.com/sirupsen/logrus"
-
 	"github.com/urfave/cli/v2"
+	"sats-stacker/types"
 )
 
-func binanceCliCommand() ([]*cli.Command, error) {
+var Name string
+var crypto string
 
-	const crypto = "BTC"
-	binanceLog := log.WithFields(logrus.Fields{"exchange": "binance"})
+func init() {
+	Name = "Binance"
+	crypto = "BTC"
+}
 
-	cmd := []*cli.Command{
-		{
-			Name:        "binance",
-			Usage:       "Binance exchange",
-			Description: "Stack some sats on Binance full description",
-			Flags: []cli.Flag{
-				&cli.StringFlag{
-					Name:     "api-key",
-					Usage:    "Binance Api Key",
-					EnvVars:  []string{"STACKER_BINANCE_API_KEY"},
-					Required: true,
-				},
-				&cli.StringFlag{
-					Name:     "secret-key",
-					Usage:    "Binance Api Secret",
-					EnvVars:  []string{"STACKER_BINANCE_API_SECRET", "STACKER_BINANCE_API_SECRET"},
-					Required: true,
-				},
-				&cli.Float64Flag{
-					Name:     "amount",
-					Usage:    "Amount of fiat to exchange",
-					EnvVars:  []string{"STACKER_AMOUNT"},
-					Required: true,
-				},
-				&cli.StringFlag{
-					Name:     "fiat",
-					Usage:    "Fiat to exchange",
-					EnvVars:  []string{"STACKER_FIAT"},
-					Required: true,
-				},
-			},
-			Subcommands: []*cli.Command{
-				{
-					Name:  "stack",
-					Usage: "stack some sats on Binance",
-					Action: func(c *cli.Context) error {
-						thisLog := binanceLog.WithFields(logrus.Fields{"action": "stack"})
-						thisLog.Info("Stacking some sats")
+func Stack(c *cli.Context, r *types.OrderResult, l *logrus.Logger) (err error) {
+	// Define logging and Response values
+	log := l.WithFields(logrus.Fields{"exchange": Name, "action": "stack"})
+	log.Info("Stacking some sats on " + Name)
 
-						return nil
-					},
-				},
-				{
-					Name:  "withdraw",
-					Usage: "withdraw sats from Binance",
-					Action: func(c *cli.Context) error {
-						thisLog := binanceLog.WithFields(logrus.Fields{"action": "withdraw"})
-						thisLog.Info("Withdrawing some sats")
+	r.SetExchange(Name)
 
-						return nil
-					},
-				},
-			},
-		},
-	}
+	log.Debug("Not Implemented Yet")
+	return nil
+}
 
-	return cmd, nil
+func Withdraw(c *cli.Context, r *types.WithdrawResult, l *logrus.Logger) (err error) {
+	// Define logging and Response values
+	log := l.WithFields(logrus.Fields{"exchange": Name, "action": "whitdraw"})
+	log.Info("Whitdrawing some sats on " + Name)
+
+	log.Debug("Not Implemented Yet")
+
+	return nil
 }
