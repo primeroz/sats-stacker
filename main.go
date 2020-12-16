@@ -7,18 +7,12 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-
 	"github.com/urfave/cli/v2"
+	"sats-stacker/types"
 )
 
-type operation struct {
-	exchange    string
-	success     bool
-	err         error
-	description string
-}
-
-var result = operation{exchange: "None", success: false, err: nil, description: ""}
+var stackResult = types.OrderResult{}
+var withdrawResult = types.WithdrawResult{}
 var log = logrus.New()
 
 // Store the plugin loaded
@@ -37,16 +31,24 @@ func init() {
 }
 
 func stack(c *cli.Context) error {
-	result, err := stackP.(func(*cli.Context) (string, error))(c)
-	fmt.Println(result)
-	fmt.Println(err)
+	err := stackP.(func(*cli.Context, *types.OrderResult, *logrus.Logger) error)(c, &stackResult, log)
+	if err != nil {
+		return cli.Exit(fmt.Sprintf("Something went wrong while stacking on %s : %s", stackResult.Exchange, err), 1)
+	}
+
+	fmt.Printf("Result\n")
+	fmt.Printf("%#v", stackResult)
 	return nil
 }
 
 func withdraw(c *cli.Context) error {
-	result, err := withdrawP.(func(*cli.Context) (string, error))(c)
-	fmt.Println(result)
-	fmt.Println(err)
+	err := withdrawP.(func(*cli.Context, *types.WithdrawResult, *logrus.Logger) error)(c, &withdrawResult, log)
+	if err != nil {
+		return cli.Exit(fmt.Sprintf("Something went wrong while withdrawing from %s : %s", stackResult.Exchange, err), 1)
+	}
+
+	fmt.Printf("Result\n")
+	fmt.Printf("%#v", withdrawResult)
 	return nil
 }
 
@@ -55,7 +57,8 @@ func main() {
 		&cli.BoolFlag{
 			Name:    "dry-run",
 			Aliases: []string{"validate"},
-			Value:   false,
+			//Value:   false,
+			Value:   true,
 			Usage:   "dry-run",
 			EnvVars: []string{"STACKER_VALIDATE", "STACKER_DRY_RUN"},
 		},
@@ -74,7 +77,7 @@ func main() {
 		&cli.StringFlag{
 			Name:     "secret-key",
 			Usage:    "Exchange Api Secret",
-			EnvVars:  []string{"STACKER_API_SECRET", "STACKER_API_SECRET"},
+			EnvVars:  []string{"STACKER_SECRET_KEY", "STACKER_API_SECRET"},
 			Required: true,
 		},
 	}
@@ -100,7 +103,7 @@ func main() {
 				&cli.StringFlag{
 					Name:    "order-type",
 					Aliases: []string{"type"},
-					Value:   "market",
+					Value:   "limit",
 					Usage:   "Order type",
 					EnvVars: []string{"STACKER_STACK_ORDER_TYPE"},
 				},
@@ -175,13 +178,13 @@ func main() {
 			}
 
 			// Validate the loaded Symbols
-			_, ok := stackP.(func(*cli.Context) (string, error))
+			_, ok := stackP.(func(*cli.Context, *types.OrderResult, *logrus.Logger) error)
 			if !ok {
-				return cli.Exit(fmt.Sprintf("Failed to Assert Stack(*cli.Context) function from exchange: %s", exc), 1)
+				return cli.Exit(fmt.Sprintf("Failed to Assert Stack(*cli.Context, *types.OrderResult, *logrus.Logger) function from exchange: %s", exc), 1)
 			}
-			_, ok = withdrawP.(func(*cli.Context) (string, error))
+			_, ok = withdrawP.(func(*cli.Context, *types.WithdrawResult, *logrus.Logger) error)
 			if !ok {
-				return cli.Exit(fmt.Sprintf("Failed to Assert Withdraw(*cli.Context) function from exchange: %s", exc), 1)
+				return cli.Exit(fmt.Sprintf("Failed to Assert Withdraw(*cli.Context, *types.WithdrawResult, *logrus.Logger) function from exchange: %s", exc), 1)
 			}
 
 			return nil
