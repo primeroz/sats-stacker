@@ -12,4 +12,4 @@ WORKDIR /sats-stacker
 COPY --from=build /workspace/sats-stacker /sats-stacker
 
 USER nobody
-CMD ["sh"]
+CMD ["/sats-stacker/sats-stacker"]
