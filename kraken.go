@@ -42,7 +42,7 @@ func krakenStack(c *cli.Context, r *orderResult, l *logrus.Logger) (err error) {
 	// Extract Values from Kraken Responses
 	ref := reflect.ValueOf(balance)
 	balanceCrypto := reflect.Indirect(ref).FieldByName("X" + crypto)
-	balanceFiat := reflect.Indirect(ref).FieldByName("Z" + c.String("fiat"))
+	balanceFiat := reflect.Indirect(ref).FieldByName("Z" + strings.ToUpper(c.String("fiat")))
 
 	log.WithFields(logrus.Fields{
 		"crypto":        crypto,
@@ -50,6 +50,7 @@ func krakenStack(c *cli.Context, r *orderResult, l *logrus.Logger) (err error) {
 		"fiat":          c.String("fiat"),
 		"fiatBalance":   balanceFiat,
 	}).Debug("Balance before placing the Order")
+	r.setBalances(fmt.Sprintf("%f", balanceCrypto), fmt.Sprintf("%f", balanceFiat))
 
 	// Define params for the Order request
 	ask := ticker.GetPairTickerInfo(pair).Ask[0]
@@ -88,7 +89,7 @@ func krakenStack(c *cli.Context, r *orderResult, l *logrus.Logger) (err error) {
 		"orderType":  orderType,
 		"volume":     volume,
 		"price":      args["price"],
-		"validate":   args["validate"],
+		"dryrun":     args["validate"],
 		"orderFlags": args["oflags"],
 	}).Debug("Order to execute")
 
@@ -100,24 +101,18 @@ func krakenStack(c *cli.Context, r *orderResult, l *logrus.Logger) (err error) {
 		return err
 	}
 
-	if c.Bool("validate") {
-		log.WithFields(logrus.Fields{
-			"order":        order.Description.Order,
-			"transactions": strings.Join(order.TransactionIds, ","),
-		}).Debug("DRY-RUN Order Placed")
-		r.setSuccess("DRY-RUN "+order.Description.Order, strings.Join(order.TransactionIds, ","), orderType, volume, c.Float64("amount"), price)
-	} else {
-		log.WithFields(logrus.Fields{
-			"order":        order.Description.Order,
-			"transactions": strings.Join(order.TransactionIds, ","),
-		}).Debug("Order Placed")
-		r.setSuccess(order.Description.Order, strings.Join(order.TransactionIds, ","), orderType, volume, c.Float64("amount"), price)
-	}
+	log.WithFields(logrus.Fields{
+		"order":        order.Description.Order,
+		"transactions": strings.Join(order.TransactionIds, ","),
+		"dryrun":       args["validate"],
+		"orderFlags":   args["oflags"],
+	}).Debug("Order Placed")
+	r.setSuccess(order.Description.Order, strings.Join(order.TransactionIds, ","), orderType, volume, c.Float64("amount"), price, crypto, c.String("fiat"))
 
 	return nil
 }
 
-func krakenWithdraw(c *cli.Context, r *withdrawResult, l *logrus.Logger) (err error) {
+func krakenWithdraw(c *cli.Context, r *orderResult, l *logrus.Logger) (err error) {
 	// Define logging and Response values
 	log := l.WithFields(logrus.Fields{"exchange": name, "action": "whitdraw"})
 	log.Info("Whitdrawing some sats on " + name)
