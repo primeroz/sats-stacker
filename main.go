@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"plugin"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -47,6 +46,12 @@ func withdraw(c *cli.Context) error {
 }
 
 func main() {
+	usage := `
+		a cli-tool to stack, and withdraw, sats on Kraken exchange.
+
+		more information on usage will follow	
+`
+
 	flags := []cli.Flag{
 		&cli.BoolFlag{
 			Name:    "dry-run",
@@ -132,8 +137,8 @@ func main() {
 		},
 		Copyright: "GPL",
 		HelpName:  "Kraken SATs Stacker",
-		Usage:     "demonstrate available API",
-		UsageText: "sats-stacker - stack and withdraw for Kraken exchange",
+		Usage:     "stack and withdraw sats for Kraken exchange",
+		UsageText: usage,
 		Flags:     flags,
 		Commands:  commands,
 		Before: func(c *cli.Context) error {
