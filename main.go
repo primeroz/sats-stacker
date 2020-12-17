@@ -16,8 +16,8 @@ var withdrawResult = types.WithdrawResult{}
 var log = logrus.New()
 
 // Store the plugin loaded
-var stackP plugin.Symbol
-var withdrawP plugin.Symbol
+var stackSym plugin.Symbol
+var withdrawSym plugin.Symbol
 
 func init() {
 
@@ -31,7 +31,7 @@ func init() {
 }
 
 func stack(c *cli.Context) error {
-	err := stackP.(func(*cli.Context, *types.OrderResult, *logrus.Logger) error)(c, &stackResult, log)
+	err := stackSym.(func(*cli.Context, *types.OrderResult, *logrus.Logger) error)(c, &stackResult, log)
 	if err != nil {
 		return cli.Exit(fmt.Sprintf("Something went wrong while stacking on %s : %s", stackResult.Exchange, err), 1)
 	}
@@ -42,7 +42,7 @@ func stack(c *cli.Context) error {
 }
 
 func withdraw(c *cli.Context) error {
-	err := withdrawP.(func(*cli.Context, *types.WithdrawResult, *logrus.Logger) error)(c, &withdrawResult, log)
+	err := withdrawSym.(func(*cli.Context, *types.WithdrawResult, *logrus.Logger) error)(c, &withdrawResult, log)
 	if err != nil {
 		return cli.Exit(fmt.Sprintf("Something went wrong while withdrawing from %s : %s", stackResult.Exchange, err), 1)
 	}
@@ -168,21 +168,21 @@ func main() {
 			}
 
 			// Lookup the symbol
-			stackP, err = plug.Lookup("Stack")
+			stackSym, err = plug.Lookup("Stack")
 			if err != nil {
 				return cli.Exit(fmt.Sprintf("Failed to lookup Stack() function from Exchange plugin: %s", err), 1)
 			}
-			withdrawP, err = plug.Lookup("Withdraw")
+			withdrawSym, err = plug.Lookup("Withdraw")
 			if err != nil {
 				return cli.Exit(fmt.Sprintf("Failed to lookup Withdraw() function from Exchange plugin: %s", err), 1)
 			}
 
 			// Validate the loaded Symbols
-			_, ok := stackP.(func(*cli.Context, *types.OrderResult, *logrus.Logger) error)
+			_, ok := stackSym.(func(*cli.Context, *types.OrderResult, *logrus.Logger) error)
 			if !ok {
 				return cli.Exit(fmt.Sprintf("Failed to Assert Stack(*cli.Context, *types.OrderResult, *logrus.Logger) function from exchange: %s", exc), 1)
 			}
-			_, ok = withdrawP.(func(*cli.Context, *types.WithdrawResult, *logrus.Logger) error)
+			_, ok = withdrawSym.(func(*cli.Context, *types.WithdrawResult, *logrus.Logger) error)
 			if !ok {
 				return cli.Exit(fmt.Sprintf("Failed to Assert Withdraw(*cli.Context, *types.WithdrawResult, *logrus.Logger) function from exchange: %s", exc), 1)
 			}
