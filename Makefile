@@ -1,5 +1,5 @@
-VERSION := $(shell git describe --tags || echo noTag)
 BUILD := $(shell git rev-parse --short HEAD)
+VERSION := $(shell git describe --tags || echo $BUILD)
 
 #GOPLUGINS = kraken binance
 # Use linker flags to provide version/build settings
