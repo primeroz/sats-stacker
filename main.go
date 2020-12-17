@@ -2,118 +2,134 @@ package main
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"os"
-	"reflect"
-	"strconv"
 	"time"
 
-	"github.com/beldur/kraken-go-api-client"
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 )
 
-const crypto = "XBT"
+var result = orderResult{}
+var log = logrus.New()
+
+func init() {
+	// Setup Logging
+	log.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
+	log.SetOutput(os.Stderr)
+	//log.SetLevel(logrus.InfoLevel)
+	log.SetLevel(logrus.DebugLevel)
+}
 
 func stack(c *cli.Context) error {
-	stacklog := log.WithFields(log.Fields{"action": "stack"})
-	stacklog.Info("Stacking some sats")
+	result.setRequestType("stack")
+	result.setDryRun(c.Bool("validate"))
 
-	pair := "X" + crypto + "Z" + c.String("fiat")
-
-	// Get API Object , Balance and Ticker from Kraken
-	api := krakenapi.New(c.String("api-key"), c.String("secret-key"))
-
-	balance, err := api.Balance()
+	err := krakenStack(c, &result, log)
 	if err != nil {
-		return cli.Exit(fmt.Sprintf("Failed to get Balance: %+v", err), 2)
+		return cli.Exit(fmt.Sprintf("Something went wrong while stacking on Kraken : %s", err), 1)
 	}
 
-	ticker, err := api.Ticker(pair)
+	notify(c)
+	return nil
+}
+
+func withdraw(c *cli.Context) error {
+	result.setRequestType("withdraw")
+	result.setDryRun(c.Bool("validate"))
+
+	err := krakenWithdraw(c, &result, log)
 	if err != nil {
-		return cli.Exit(fmt.Sprintf("Failed to get Ticker for pair %s: %+v", pair, err), 2)
+		return cli.Exit(fmt.Sprintf("Something went wrong while withdrawing from Kraken : %s", err), 1)
 	}
 
-	// Extract Values from Kraken Responses
-	r := reflect.ValueOf(balance)
-	balanceCrypto := reflect.Indirect(r).FieldByName("X" + crypto)
-	balanceFiat := reflect.Indirect(r).FieldByName("Z" + c.String("fiat"))
+	fmt.Printf("Result\n")
+	fmt.Printf("%#v", result)
+	return nil
+}
 
-	stacklog.WithFields(log.Fields{
-		"crypto":        crypto,
-		"cryptoBalance": balanceCrypto,
-		"fiat":          c.String("fiat"),
-		"fiatBalance":   balanceFiat,
-	}).Debug("BALANCE")
+func notify(c *cli.Context) error {
 
-	// Define Order params
-	ask := ticker.GetPairTickerInfo(pair).Ask[0]
-	//bid := ticker.GetPairTickerInfo(pair).Bid[0]
-	price, err := strconv.ParseFloat(ask, 64)
-	if err != nil {
-		return cli.Exit(fmt.Sprintf("Failed to get Ask price for pair %s: %+v", pair, err), 2)
+	switch c.String("notifier") {
+	case "stdout":
+		fmt.Printf("Result\n")
+		fmt.Printf("%#v", result)
+	case "simplepush":
+		sendMessageSP(c, &result, log)
+	default:
+		return nil
 	}
-	volume := strconv.FormatFloat((c.Float64("amount") / price), 'f', 8, 64)
-	// TODO: If volume < 0.001 then error -this is the minimum kraken order volume
-
-	// TODO support for limit order ?
-	orderType := "market"
-
-	args := make(map[string]string)
-	//args["validate"] = strconv.FormatBool(c.Bool("validate"))
-	args["validate"] = "true"
-	args["oflags"] = "fciq" // "buy" button will actually sell the quote currency in exchange for the base currency
-
-	stacklog.WithFields(log.Fields{
-		"pair":       pair,
-		"type":       "buy",
-		"orderType":  orderType,
-		"volume":     volume,
-		"price":      price,
-		"validate":   args["validate"],
-		"orderFlags": args["oflags"],
-	}).Debug("ORDER to execute")
-
-	order, err := api.AddOrder(pair, "buy", orderType, volume, args)
-
-	if err != nil {
-		return cli.Exit(fmt.Sprintf("Failed to place Order: %+v", err), 2)
-	}
-
-	stacklog.WithFields(log.Fields{
-		"description":  order.Description,
-		"transactions": order.TransactionIds,
-	}).Debug("ORDER Placed")
 
 	return nil
-
-	//ticker, err := api.Ticker(krakenapi.XXBTZEUR)
-	//if err != nil {
-	//log.Fatal(err)
-	//}
 }
 
 func main() {
+	usage := `
+		a cli-tool to stack, and withdraw, sats on Kraken exchange.
+
+		more information on usage will follow	
+`
+
 	flags := []cli.Flag{
 		&cli.BoolFlag{
-			Name:    "validate",
-			Aliases: []string{"dry-run"},
-			Value:   false,
+			Name:    "dry-run",
+			Aliases: []string{"validate"},
+			//Value:   false,
+			Value:   true,
 			Usage:   "dry-run",
 			EnvVars: []string{"STACKER_VALIDATE", "STACKER_DRY_RUN"},
 		},
 		&cli.StringFlag{
 			Name:     "api-key",
-			Aliases:  []string{"a"},
 			Usage:    "Kraken Api Key",
-			EnvVars:  []string{"STACKER_KRAKEN_API_KEY"},
+			EnvVars:  []string{"STACKER_API_KEY"},
 			Required: true,
 		},
 		&cli.StringFlag{
 			Name:     "secret-key",
-			Aliases:  []string{"s"},
 			Usage:    "Kraken Api Secret",
-			EnvVars:  []string{"STACKER_KRAKEN_API_SECRET", "STACKER_KRAKEN_API_SECRET"},
+			EnvVars:  []string{"STACKER_SECRET_KEY", "STACKER_API_SECRET"},
 			Required: true,
+		},
+	}
+
+	notifierFlags := []cli.Flag{
+		&cli.StringFlag{
+			Name:    "notifier",
+			Usage:   "What notifier to use ['stdout','simplepush']",
+			Value:   "stdout",
+			EnvVars: []string{"STACKER_NOTIFIER"},
+		},
+		&cli.BoolFlag{
+			Name:    "sp-encrypt",
+			Value:   true,
+			Usage:   "Simplepush: If set, the message will be sent end-to-end encrypted with the provided Password/Salt. If false, the message is sent unencrypted.",
+			EnvVars: []string{"STACKER_SP_ENCRYPT"},
+		},
+		&cli.StringFlag{
+			Name:    "sp-key",
+			Usage:   "Simplepush: Your simplepush.io Key",
+			Value:   "",
+			EnvVars: []string{"STACKER_SP_KEY"},
+		},
+		&cli.StringFlag{
+			Name:    "sp-event",
+			Usage:   "Simplepush: The event the message should be associated with",
+			Value:   "",
+			EnvVars: []string{"STACKER_SP_EVENT"},
+		},
+		&cli.StringFlag{
+			Name:    "sp-password",
+			Usage:   "Simplepush: Encryption Password",
+			Value:   "",
+			EnvVars: []string{"STACKER_SP_PASSWORD"},
+		},
+		&cli.StringFlag{
+			Name:    "sp-salt",
+			Usage:   "Simplepush: The salt for the encrypted message",
+			Value:   "",
+			EnvVars: []string{"STACKER_SP_SALT"},
 		},
 	}
 
@@ -126,22 +142,49 @@ func main() {
 				&cli.Float64Flag{
 					Name:     "amount",
 					Usage:    "Amount of fiat to exchange",
-					EnvVars:  []string{"STACKER_AMOUNT"},
+					EnvVars:  []string{"STACKER_STACK_AMOUNT"},
 					Required: true,
 				},
 				&cli.StringFlag{
 					Name:     "fiat",
 					Usage:    "Fiat to exchange",
-					EnvVars:  []string{"STACKER_FIAT"},
+					EnvVars:  []string{"STACKER_STACK_FIAT"},
 					Required: true,
+				},
+				&cli.StringFlag{
+					Name:    "order-type",
+					Aliases: []string{"type"},
+					Value:   "limit",
+					Usage:   "Order type",
+					EnvVars: []string{"STACKER_STACK_ORDER_TYPE"},
 				},
 			},
 			Action: stack,
 		},
+		{
+			Name:        "withdraw",
+			Usage:       "Withdraw some sats from Kraken",
+			Description: "Withdraw some sats from Kraken full description",
+			Flags: []cli.Flag{
+				&cli.Float64Flag{
+					Name:     "max-fee",
+					Usage:    "Max fee in percentage",
+					EnvVars:  []string{"STACKER_WITHDRAW_MAX_FEE"},
+					Required: true,
+				},
+				&cli.StringFlag{
+					Name:     "address",
+					Usage:    "Address to withdraw to, the actual value will depend on the exchange selected",
+					EnvVars:  []string{"STACKER_WITHDRAW_ADDRESS"},
+					Required: true,
+				},
+			},
+			Action: withdraw,
+		},
 	}
 
 	app := &cli.App{
-		Name:     "kraken-stacker",
+		Name:     "sats-stacker",
 		Version:  "0.0.1",
 		Compiled: time.Now(),
 		Authors: []*cli.Author{
@@ -151,22 +194,18 @@ func main() {
 			},
 		},
 		Copyright: "GPL",
-		HelpName:  "contrive",
-		Usage:     "demonstrate available API",
-		UsageText: "contrive - demonstrating the available API",
-		Flags:     flags,
+		HelpName:  "Kraken SATs Stacker",
+		Usage:     "stack and withdraw sats for Kraken exchange",
+		UsageText: usage,
+		Flags:     append(flags, notifierFlags...),
 		Commands:  commands,
+		Before: func(c *cli.Context) error {
+			return nil
+		},
+		After: func(c *cli.Context) error {
+			return nil
+		},
 	}
-
-	//app.UseShortOptionHandling = true
-
-	// Setup Logging
-	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp: true,
-	})
-	log.SetOutput(os.Stdout)
-	log.SetLevel(log.InfoLevel)
-	log.SetLevel(log.DebugLevel)
 
 	err := app.Run(os.Args)
 	if err != nil {
