@@ -56,7 +56,6 @@ jobs:
         --cache-to "type=local,dest=/tmp/.buildx-cache" \
         --platform linux/amd64,linux/arm64,linux/arm/v7 \
         --tag ${{ secrets.DOCKER_USERNAME }}/$DOCKER_HUB_REPO:$TAG \
-        --output "type=local,dest=output" \
         --output "type=registry" .
 
     - name: build against latest
@@ -67,6 +66,15 @@ jobs:
         --platform linux/amd64,linux/arm64,linux/arm/v7 \
         --tag ${{ secrets.DOCKER_USERNAME }}/$DOCKER_HUB_REPO:latest \
         --output "type=registry" .
+
+    - name: build for release
+      run: |
+        docker buildx build \
+        --cache-from "type=local,src=/tmp/.buildx-cache" \
+        --cache-to "type=local,dest=/tmp/.buildx-cache" \
+        --platform linux/amd64,linux/arm64,linux/arm/v7 \
+        --tag ${{ secrets.DOCKER_USERNAME }}/$DOCKER_HUB_REPO:latest \
+        --output "type=local,dest=output" .
 
     - name: Rename Files for release on github
       run: |
