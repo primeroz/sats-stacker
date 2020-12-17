@@ -8,19 +8,13 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
-	"sats-stacker/types"
 )
 
-var stackResult = types.OrderResult{}
-var withdrawResult = types.WithdrawResult{}
+var sResult = orderResult{}
+var wResult = withdrawResult{}
 var log = logrus.New()
 
-// Store the plugin loaded
-var stackSym plugin.Symbol
-var withdrawSym plugin.Symbol
-
 func init() {
-
 	// Setup Logging
 	log.SetFormatter(&logrus.TextFormatter{
 		FullTimestamp: true,
@@ -31,24 +25,24 @@ func init() {
 }
 
 func stack(c *cli.Context) error {
-	err := stackSym.(func(*cli.Context, *types.OrderResult, *logrus.Logger) error)(c, &stackResult, log)
+	err := krakenStack(c, &sResult, log)
 	if err != nil {
-		return cli.Exit(fmt.Sprintf("Something went wrong while stacking on %s : %s", stackResult.Exchange, err), 1)
+		return cli.Exit(fmt.Sprintf("Something went wrong while stacking on Kraken : %s", err), 1)
 	}
 
 	fmt.Printf("Result\n")
-	fmt.Printf("%#v", stackResult)
+	fmt.Printf("%#v", sResult)
 	return nil
 }
 
 func withdraw(c *cli.Context) error {
-	err := withdrawSym.(func(*cli.Context, *types.WithdrawResult, *logrus.Logger) error)(c, &withdrawResult, log)
+	err := krakenWithdraw(c, &wResult, log)
 	if err != nil {
-		return cli.Exit(fmt.Sprintf("Something went wrong while withdrawing from %s : %s", stackResult.Exchange, err), 1)
+		return cli.Exit(fmt.Sprintf("Something went wrong while withdrawing from Kraken : %s", err), 1)
 	}
 
 	fmt.Printf("Result\n")
-	fmt.Printf("%#v", withdrawResult)
+	fmt.Printf("%#v", wResult)
 	return nil
 }
 
@@ -63,20 +57,14 @@ func main() {
 			EnvVars: []string{"STACKER_VALIDATE", "STACKER_DRY_RUN"},
 		},
 		&cli.StringFlag{
-			Name:    "exchange",
-			Usage:   "Exchange to use: ['kraken','binance']",
-			Value:   "kraken",
-			EnvVars: []string{"STACKER_EXCHANGE"},
-		},
-		&cli.StringFlag{
 			Name:     "api-key",
-			Usage:    "Exchange Api Key",
+			Usage:    "Kraken Api Key",
 			EnvVars:  []string{"STACKER_API_KEY"},
 			Required: true,
 		},
 		&cli.StringFlag{
 			Name:     "secret-key",
-			Usage:    "Exchange Api Secret",
+			Usage:    "Kraken Api Secret",
 			EnvVars:  []string{"STACKER_SECRET_KEY", "STACKER_API_SECRET"},
 			Required: true,
 		},
@@ -85,8 +73,8 @@ func main() {
 	commands := []*cli.Command{
 		{
 			Name:        "stack",
-			Usage:       "Stack some sats on Exchange",
-			Description: "Stack some sats on Exchange full description",
+			Usage:       "Stack some sats on Kraken",
+			Description: "Stack some sats on Kraken full description",
 			Flags: []cli.Flag{
 				&cli.Float64Flag{
 					Name:     "amount",
@@ -112,8 +100,8 @@ func main() {
 		},
 		{
 			Name:        "withdraw",
-			Usage:       "Withdraw some sats from Exchange",
-			Description: "Withdraw some sats from Exchange full description",
+			Usage:       "Withdraw some sats from Kraken",
+			Description: "Withdraw some sats from Kraken full description",
 			Flags: []cli.Flag{
 				&cli.Float64Flag{
 					Name:     "max-fee",
@@ -143,50 +131,12 @@ func main() {
 			},
 		},
 		Copyright: "GPL",
-		HelpName:  "SATs Stacker",
+		HelpName:  "Kraken SATs Stacker",
 		Usage:     "demonstrate available API",
-		UsageText: "sats-stacker - demonstrating the available API",
+		UsageText: "sats-stacker - stack and withdraw for Kraken exchange",
 		Flags:     flags,
 		Commands:  commands,
 		Before: func(c *cli.Context) error {
-			// Validate Exchange selected
-			exc := c.String("exchange")
-			var pluginPath string
-			switch exc {
-			case "kraken":
-				pluginPath = "./plugins/kraken.so"
-			case "binance":
-				pluginPath = "./plugins/binance.so"
-			default:
-				return cli.Exit(fmt.Sprintf("Unsupported Exchange: %s", exc), 2)
-			}
-
-			// Load Plugin
-			plug, err := plugin.Open(pluginPath)
-			if err != nil {
-				return cli.Exit(fmt.Sprintf("Failed to load Exchange plugin: %s", err), 1)
-			}
-
-			// Lookup the symbol
-			stackSym, err = plug.Lookup("Stack")
-			if err != nil {
-				return cli.Exit(fmt.Sprintf("Failed to lookup Stack() function from Exchange plugin: %s", err), 1)
-			}
-			withdrawSym, err = plug.Lookup("Withdraw")
-			if err != nil {
-				return cli.Exit(fmt.Sprintf("Failed to lookup Withdraw() function from Exchange plugin: %s", err), 1)
-			}
-
-			// Validate the loaded Symbols
-			_, ok := stackSym.(func(*cli.Context, *types.OrderResult, *logrus.Logger) error)
-			if !ok {
-				return cli.Exit(fmt.Sprintf("Failed to Assert Stack(*cli.Context, *types.OrderResult, *logrus.Logger) function from exchange: %s", exc), 1)
-			}
-			_, ok = withdrawSym.(func(*cli.Context, *types.WithdrawResult, *logrus.Logger) error)
-			if !ok {
-				return cli.Exit(fmt.Sprintf("Failed to Assert Withdraw(*cli.Context, *types.WithdrawResult, *logrus.Logger) function from exchange: %s", exc), 1)
-			}
-
 			return nil
 		},
 		After: func(c *cli.Context) error {

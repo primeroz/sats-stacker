@@ -7,25 +7,17 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"reflect"
-	"sats-stacker/types"
 	"strconv"
 	"strings"
 )
 
-var Name string
-var crypto string
+const name = "Kraken"
+const crypto = "XBT"
 
-func init() {
-	Name = "Kraken"
-	crypto = "XBT"
-}
-
-func Stack(c *cli.Context, r *types.OrderResult, l *logrus.Logger) (err error) {
+func krakenStack(c *cli.Context, r *orderResult, l *logrus.Logger) (err error) {
 	// Define logging and Response values
-	log := l.WithFields(logrus.Fields{"exchange": Name, "action": "stack"})
-	log.Info("Stacking some sats on " + Name)
-
-	r.SetExchange(Name)
+	log := l.WithFields(logrus.Fields{"exchange": name, "action": "stack"})
+	log.Info("Stacking some sats on " + name)
 
 	// Pair to work on - kraken XXBTZ<FIAT>
 	pair := strings.ToUpper("X" + crypto + "Z" + c.String("fiat"))
@@ -36,14 +28,14 @@ func Stack(c *cli.Context, r *types.OrderResult, l *logrus.Logger) (err error) {
 	// Get the current balance for api-key/secret-key
 	balance, err := api.Balance()
 	if err != nil {
-		r.SetFailed("Failed to get Balance - Check API and SECRET Keys")
+		r.setFailed("Failed to get Balance - Check API and SECRET Keys")
 		return err
 	}
 
 	// Get the current ticker for the given PAIR
 	ticker, err := api.Ticker(pair)
 	if err != nil {
-		r.SetFailed(fmt.Sprintf("Failed to get Ticker for pair %s", pair))
+		r.setFailed(fmt.Sprintf("Failed to get Ticker for pair %s", pair))
 		return err
 	}
 
@@ -63,14 +55,14 @@ func Stack(c *cli.Context, r *types.OrderResult, l *logrus.Logger) (err error) {
 	ask := ticker.GetPairTickerInfo(pair).Ask[0]
 	price, err := strconv.ParseFloat(ask, 64)
 	if err != nil {
-		r.SetFailed(fmt.Sprintf("Failed to get Ask price for pair %s", pair))
+		r.setFailed(fmt.Sprintf("Failed to get Ask price for pair %s", pair))
 		return err
 	}
 
 	volume := strconv.FormatFloat((c.Float64("amount") / price), 'f', 8, 64)
 	// TODO: If volume < 0.001 then error -this is the minimum kraken order volume
 	if fVolume, _ := strconv.ParseFloat(volume, 64); fVolume < 0.001 {
-		r.SetFailed(fmt.Sprintf("Minimum volume for BTC Order is 0.001 got %s", volume))
+		r.setFailed(fmt.Sprintf("Minimum volume for BTC Order is 0.001 got %s", volume))
 		return errors.New(fmt.Sprintf("Minimum volume for BTC Order is 0.001 got %s", volume))
 	}
 
@@ -81,7 +73,7 @@ func Stack(c *cli.Context, r *types.OrderResult, l *logrus.Logger) (err error) {
 	case "limit":
 		orderType = "limit"
 	default:
-		r.SetFailed(fmt.Sprintf("Unsupporter order type %s , only ['limit', 'market']", otype))
+		r.setFailed(fmt.Sprintf("Unsupporter order type %s , only ['limit', 'market']", otype))
 		return errors.New("Unsupported order type " + otype)
 	}
 
@@ -104,7 +96,7 @@ func Stack(c *cli.Context, r *types.OrderResult, l *logrus.Logger) (err error) {
 	order, err := api.AddOrder(pair, "buy", orderType, volume, args)
 
 	if err != nil {
-		r.SetFailed("Failed to place Order")
+		r.setFailed("Failed to place Order")
 		return err
 	}
 
@@ -113,22 +105,22 @@ func Stack(c *cli.Context, r *types.OrderResult, l *logrus.Logger) (err error) {
 			"order":        order.Description.Order,
 			"transactions": strings.Join(order.TransactionIds, ","),
 		}).Debug("DRY-RUN Order Placed")
-		r.SetSuccess("DRY-RUN "+order.Description.Order, strings.Join(order.TransactionIds, ","), orderType, volume, c.Float64("amount"), price)
+		r.setSuccess("DRY-RUN "+order.Description.Order, strings.Join(order.TransactionIds, ","), orderType, volume, c.Float64("amount"), price)
 	} else {
 		log.WithFields(logrus.Fields{
 			"order":        order.Description.Order,
 			"transactions": strings.Join(order.TransactionIds, ","),
 		}).Debug("Order Placed")
-		r.SetSuccess(order.Description.Order, strings.Join(order.TransactionIds, ","), orderType, volume, c.Float64("amount"), price)
+		r.setSuccess(order.Description.Order, strings.Join(order.TransactionIds, ","), orderType, volume, c.Float64("amount"), price)
 	}
 
 	return nil
 }
 
-func Withdraw(c *cli.Context, r *types.WithdrawResult, l *logrus.Logger) (err error) {
+func krakenWithdraw(c *cli.Context, r *withdrawResult, l *logrus.Logger) (err error) {
 	// Define logging and Response values
-	log := l.WithFields(logrus.Fields{"exchange": Name, "action": "whitdraw"})
-	log.Info("Whitdrawing some sats on " + Name)
+	log := l.WithFields(logrus.Fields{"exchange": name, "action": "whitdraw"})
+	log.Info("Whitdrawing some sats on " + name)
 
 	log.Debug("Not Implemented Yet")
 
