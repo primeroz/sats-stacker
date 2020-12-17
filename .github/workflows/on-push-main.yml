@@ -25,6 +25,7 @@ jobs:
         echo "SHORTSHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
         echo "DOCKER_HUB_REPO=sats-stacker" >> $GITHUB_ENV
 
+
     - name: Show set env variables
       run: |
         printf "    BRANCH: %s\n"  "$BRANCH"
