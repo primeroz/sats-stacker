@@ -12,7 +12,7 @@ import (
 
 var result = orderResult{}
 var log = logrus.New()
-var version string
+var Version string
 
 func init() {
 	// Setup Logging
@@ -23,14 +23,13 @@ func init() {
 	//log.SetLevel(logrus.InfoLevel)
 	log.SetLevel(logrus.DebugLevel)
 
-	// Set Version from Env
-	version = os.Getenv("VERSION")
-	if len(version) == 0 {
+	// Set Version
+	if len(Version) == 0 {
 		out, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output()
 		if err != nil {
-			version = "master"
+			Version = "master"
 		} else {
-			version = string(out)
+			Version = string(out)
 		}
 	}
 }
@@ -198,7 +197,7 @@ func main() {
 
 	app := &cli.App{
 		Name:     "sats-stacker",
-		Version:  version,
+		Version:  Version,
 		Compiled: time.Now(),
 		Authors: []*cli.Author{
 			&cli.Author{
