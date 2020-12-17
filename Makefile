@@ -9,22 +9,7 @@ LDFLAGS=-ldflags "-X=main.Version=$(VERSION) -X=main.Build=$(BUILD)"
 # Make is verbose in Linux. Make it silent.
 MAKEFLAGS += --silent
 
-#.PHONY: $(GOPLUGINS)
-#$(GOPLUGINS):
-#	@echo "  >  Building plugin... $(<)"
-#	go build -buildmode=plugin -o $(<)/$(<).so $(<)/$(<).go
-
-.PHONY: kraken
-kraken:
-	@echo "  >  Building plugin... kraken"
-	go build $(LDFLAGS) -buildmode=plugin -o plugins/kraken.so kraken/kraken.go
-
-.PHONY: binance
-binance:
-	@echo "  >  Building plugin... binance"
-	go build $(LDFLAGS) -buildmode=plugin -o plugins/binance.so binance/binance.go
-
-#build: $(GOPLUGINS)
-build: kraken binance
+.DEFAULT_GOAL := build
+build:
 	@echo "  >  Building binary..."
 	go build $(LDFLAGS) -o sats-stacker .

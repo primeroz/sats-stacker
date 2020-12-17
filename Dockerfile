@@ -9,8 +9,7 @@ FROM debian:buster-slim
 
 WORKDIR /sats-stacker
 
-COPY --from=build /workspace/sats-stacker /sats-stacker/sats-stacker
-COPY --from=build /workspace/plugins /sats-stacker/plugins
+COPY --from=build /workspace/sats-stacker /sats-stacker
 
 USER nobody
 CMD ["sh"]
