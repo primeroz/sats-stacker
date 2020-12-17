@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -11,6 +12,7 @@ import (
 
 var result = orderResult{}
 var log = logrus.New()
+var version string
 
 func init() {
 	// Setup Logging
@@ -20,6 +22,17 @@ func init() {
 	log.SetOutput(os.Stderr)
 	//log.SetLevel(logrus.InfoLevel)
 	log.SetLevel(logrus.DebugLevel)
+
+	// Set Version from Env
+	version = os.Getenv("VERSION")
+	if len(version) == 0 {
+		out, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output()
+		if err != nil {
+			version = "master"
+		} else {
+			version = string(out)
+		}
+	}
 }
 
 func stack(c *cli.Context) error {
@@ -185,7 +198,7 @@ func main() {
 
 	app := &cli.App{
 		Name:     "sats-stacker",
-		Version:  "0.0.1",
+		Version:  version,
 		Compiled: time.Now(),
 		Authors: []*cli.Author{
 			&cli.Author{

@@ -1,5 +1,8 @@
 FROM golang:1.15-buster as build
 
+ARG VERSION
+ENV VERSION $VERSION
+
 WORKDIR /workspace
 COPY . /workspace
 
