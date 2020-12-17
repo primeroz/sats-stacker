@@ -86,6 +86,9 @@ jobs:
         chmod a+x ./output/sats-stacker_amd64
         rm -rf output/linux_arm_v7 output/linux_arm64 output/linux_amd64
 
+    - name: Generate Changelog
+      run: echo "# Changelog" > output/CHANGELOG.txt
+
     - name: Release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
@@ -94,6 +97,6 @@ jobs:
           output/sats-stacker_armv7
           output/sats-stacker_arm64
           output/sats-stacker_amd64
-        body_path: ${{ github.workflow }}-CHANGELOG.txt
+        body_path: output/CHANGELOG.txt
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
