@@ -56,6 +56,7 @@ jobs:
         --cache-to "type=local,dest=/tmp/.buildx-cache" \
         --platform linux/amd64,linux/arm64,linux/arm/v7 \
         --tag ${{ secrets.DOCKER_USERNAME }}/$DOCKER_HUB_REPO:$TAG \
+        --output "type=local,dest=output"
         --output "type=registry" .
 
     - name: build against latest
@@ -66,3 +67,25 @@ jobs:
         --platform linux/amd64,linux/arm64,linux/arm/v7 \
         --tag ${{ secrets.DOCKER_USERNAME }}/$DOCKER_HUB_REPO:latest \
         --output "type=registry" .
+
+    - name: Rename Files for release on github
+      run: |
+        mv output/linux_arm_v7/sats-stacker output/sats-stacker_armv7
+        chmod a+x ./output/sats-stacker_armv7
+        mv output/linux_arm64/sats-stacker output/sats-stacker_arm64
+        chmod a+x ./output/sats-stacker_arm64
+        mv output/linux_amd64/sats-stacker output/sats-stacker_amd64
+        chmod a+x ./output/sats-stacker_amd64
+        rm -rf output/linux_arm_v7 output/linux_arm64 output/linux_amd64
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          output/sats-stacker_armv7
+          output/sats-stacker_arm64
+          output/sats-stacker_amd64
+        body_path: ${{ github.workflow }}-CHANGELOG.txt
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
