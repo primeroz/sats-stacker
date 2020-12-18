@@ -7,6 +7,8 @@ RUN make build
 
 FROM debian:buster-slim
 
+RUN apt-get -y update && apt-get install -y ca-certificates
+
 WORKDIR /sats-stacker
 
 COPY --from=build /workspace/sats-stacker /sats-stacker
