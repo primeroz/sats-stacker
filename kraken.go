@@ -79,7 +79,12 @@ func krakenStack(c *cli.Context, r *orderResult, l *logrus.Logger) (err error) {
 	}
 
 	args := make(map[string]string)
-	args["validate"] = strconv.FormatBool(c.Bool("validate"))
+
+	var validate string
+	if c.Bool("validate") {
+		validate = strconv.FormatBool(c.Bool("validate"))
+		args["validate"] = strconv.FormatBool(c.Bool("validate"))
+	}
 	args["price"] = fmt.Sprintf("%f", price) // for Market order this is not used
 	args["oflags"] = "fciq"                  // "buy" button will actually sell the quote currency in exchange for the base currency, pay fee in the the quote currenty ( fiat )
 
@@ -89,7 +94,7 @@ func krakenStack(c *cli.Context, r *orderResult, l *logrus.Logger) (err error) {
 		"orderType":  orderType,
 		"volume":     volume,
 		"price":      args["price"],
-		"dryrun":     args["validate"],
+		"dryrun":     validate,
 		"orderFlags": args["oflags"],
 	}).Debug("Order to execute")
 
@@ -104,7 +109,7 @@ func krakenStack(c *cli.Context, r *orderResult, l *logrus.Logger) (err error) {
 	log.WithFields(logrus.Fields{
 		"order":        order.Description.Order,
 		"transactions": strings.Join(order.TransactionIds, ","),
-		"dryrun":       args["validate"],
+		"dryrun":       validate,
 		"orderFlags":   args["oflags"],
 	}).Debug("Order Placed")
 	r.setSuccess(order.Description.Order, strings.Join(order.TransactionIds, ","), orderType, volume, c.Float64("amount"), price, crypto, c.String("fiat"))
