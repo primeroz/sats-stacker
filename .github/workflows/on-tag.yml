@@ -78,14 +78,13 @@ jobs:
 
     - name: Rename Files for release on github
       run: |
-        mv output/linux_arm_v7/sats-stacker output/sats-stacker_armv7
+        mv output/linux_arm_v7/sats-stacker/sats-stacker output/sats-stacker_armv7
         chmod a+x ./output/sats-stacker_armv7
-        mv output/linux_arm64/sats-stacker output/sats-stacker_arm64
+        mv output/linux_arm64/sats-stacker/sats-stacker output/sats-stacker_arm64
         chmod a+x ./output/sats-stacker_arm64
-        mv output/linux_amd64/sats-stacker output/sats-stacker_amd64
+        mv output/linux_amd64/sats-stacker/sats-stacker output/sats-stacker_amd64
         chmod a+x ./output/sats-stacker_amd64
         rm -rf output/linux_arm_v7 output/linux_arm64 output/linux_amd64
-        ls -la output/
 
     - name: Generate Changelog
       run: echo "# Changelog" > output/CHANGELOG.txt
