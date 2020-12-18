@@ -58,7 +58,7 @@ jobs:
         --tag ${{ secrets.DOCKER_USERNAME }}/$DOCKER_HUB_REPO:$TAG \
         --output "type=registry" .
 
-    - name: build against latest
+    - name: Run Docker buildx against latest
       run: |
         docker buildx build \
         --cache-from "type=local,src=/tmp/.buildx-cache" \
@@ -67,7 +67,7 @@ jobs:
         --tag ${{ secrets.DOCKER_USERNAME }}/$DOCKER_HUB_REPO:latest \
         --output "type=registry" .
 
-    - name: build for release
+    - name: Run Docker buildx with local output for GH Release
       run: |
         docker buildx build \
         --cache-from "type=local,src=/tmp/.buildx-cache" \
@@ -85,11 +85,12 @@ jobs:
         mv output/linux_amd64/sats-stacker output/sats-stacker_amd64
         chmod a+x ./output/sats-stacker_amd64
         rm -rf output/linux_arm_v7 output/linux_arm64 output/linux_amd64
+        ls -la output/
 
     - name: Generate Changelog
       run: echo "# Changelog" > output/CHANGELOG.txt
 
-    - name: Release
+    - name: Release to github
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
       with:
