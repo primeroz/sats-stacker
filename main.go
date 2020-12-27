@@ -4,14 +4,24 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
+	"sats-stacker/exchange"
+	"sats-stacker/notifier"
 )
 
-var result = orderResult{}
+// Variable to hold global
 var log = logrus.New()
+var ex exchange.Exchange
+var nf notifier.Notifier
+
+var result string
+var action string
+
+// Set version at compile time
 var Version string
 
 func init() {
@@ -20,10 +30,9 @@ func init() {
 		FullTimestamp: true,
 	})
 	log.SetOutput(os.Stderr)
-	//log.SetLevel(logrus.InfoLevel)
-	log.SetLevel(logrus.DebugLevel)
+	log.SetLevel(logrus.InfoLevel)
 
-	// Set Version
+	// Set Version if not passed by compiler
 	if len(Version) == 0 {
 		out, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output()
 		if err != nil {
@@ -34,73 +43,43 @@ func init() {
 	}
 }
 
-func stack(c *cli.Context) error {
-	result.setRequestType("stack")
-	result.setDryRun(c.Bool("validate"))
-
-	err := krakenStack(c, &result, log)
-	if err != nil {
-		return cli.Exit(fmt.Sprintf("Something went wrong while stacking on Kraken : %s", err), 1)
-	}
-
-	notify(c)
-	return nil
-}
-
-func withdraw(c *cli.Context) error {
-	result.setRequestType("withdraw")
-	result.setDryRun(c.Bool("validate"))
-
-	err := krakenWithdraw(c, &result, log)
-	if err != nil {
-		return cli.Exit(fmt.Sprintf("Something went wrong while withdrawing from Kraken : %s", err), 1)
-	}
-
-	fmt.Printf("Result\n")
-	fmt.Printf("%#v", result)
-	return nil
-}
-
-func notify(c *cli.Context) error {
-
-	switch c.String("notifier") {
-	case "stdout":
-		fmt.Printf("Result\n")
-		fmt.Printf("%#v", result)
-	case "simplepush":
-		sendMessageSP(c, &result, log)
-	default:
-		return nil
-	}
-
-	return nil
-}
-
 func main() {
 	usage := `
-		a cli-tool to stack, and withdraw, sats on Kraken exchange.
+		a cli-tool to stack, and withdraw, sats on exchanges.
 
 		more information on usage will follow	
 `
 
 	flags := []cli.Flag{
 		&cli.BoolFlag{
+			Name:    "debug",
+			Aliases: []string{"d"},
+			Value:   false,
+			Usage:   "debug logging",
+			EnvVars: []string{"STACKER_DEBUG"},
+		},
+		&cli.BoolFlag{
 			Name:    "dry-run",
 			Aliases: []string{"validate"},
-			//Value:   false,
 			Value:   true,
 			Usage:   "dry-run",
 			EnvVars: []string{"STACKER_VALIDATE", "STACKER_DRY_RUN"},
 		},
 		&cli.StringFlag{
+			Name:    "exchange",
+			Usage:   "Exchange ['kraken', 'binance']",
+			EnvVars: []string{"STACKER_EXCHANGE"},
+			Value:   "kraken",
+		},
+		&cli.StringFlag{
 			Name:     "api-key",
-			Usage:    "Kraken Api Key",
+			Usage:    "Exchange Api Key",
 			EnvVars:  []string{"STACKER_API_KEY"},
 			Required: true,
 		},
 		&cli.StringFlag{
 			Name:     "secret-key",
-			Usage:    "Kraken Api Secret",
+			Usage:    "Exchange Api Secret",
 			EnvVars:  []string{"STACKER_SECRET_KEY", "STACKER_API_SECRET"},
 			Required: true,
 		},
@@ -145,11 +124,11 @@ func main() {
 		},
 	}
 
-	commands := []*cli.Command{
+	stackCommand := []*cli.Command{
 		{
 			Name:        "stack",
-			Usage:       "Stack some sats on Kraken",
-			Description: "Stack some sats on Kraken full description",
+			Usage:       "Stack some sats",
+			Description: "Stack some sats full description",
 			Flags: []cli.Flag{
 				&cli.Float64Flag{
 					Name:     "amount",
@@ -171,16 +150,31 @@ func main() {
 					EnvVars: []string{"STACKER_STACK_ORDER_TYPE"},
 				},
 			},
-			Action: stack,
+			Action: func(c *cli.Context) error {
+
+				var err error
+				result, err = ex.Stack(c.Float64("amount"), c.String("fiat"), c.String("order-type"), c.Bool("dry-run"))
+
+				action = "stack"
+
+				if err != nil {
+					return cli.Exit(err, 1)
+				}
+
+				return nil
+			},
 		},
+	}
+
+	withdrawCommand := []*cli.Command{
 		{
 			Name:        "withdraw",
-			Usage:       "Withdraw some sats from Kraken",
-			Description: "Withdraw some sats from Kraken full description",
+			Usage:       "Withdraw some sats",
+			Description: "Withdraw some sats from full description",
 			Flags: []cli.Flag{
 				&cli.Float64Flag{
 					Name:     "max-fee",
-					Usage:    "Max fee in percentage",
+					Usage:    "Max fee in percentage, only withdraw if the relative fee does not exceed this limit",
 					EnvVars:  []string{"STACKER_WITHDRAW_MAX_FEE"},
 					Required: true,
 				},
@@ -191,7 +185,18 @@ func main() {
 					Required: true,
 				},
 			},
-			Action: withdraw,
+			Action: func(c *cli.Context) error {
+				var err error
+				result, err = ex.Withdraw(c.String("address"), c.Float64("max-fee"), c.Bool("dry-run"))
+
+				action = "withdraw"
+
+				if err != nil {
+					return cli.Exit(err, 1)
+				}
+
+				return nil
+			},
 		},
 	}
 
@@ -206,15 +211,59 @@ func main() {
 			},
 		},
 		Copyright: "GPL",
-		HelpName:  "Kraken SATs Stacker",
-		Usage:     "stack and withdraw sats for Kraken exchange",
+		HelpName:  "SATs Stacker",
+		Usage:     "stack and withdraw sats",
 		UsageText: usage,
 		Flags:     append(flags, notifierFlags...),
-		Commands:  commands,
+		Commands:  append(stackCommand, withdrawCommand...),
 		Before: func(c *cli.Context) error {
+
+			if c.Bool("debug") {
+				log.SetLevel(logrus.DebugLevel)
+			}
+
+			// Load Exchange Plugin
+			switch c.String("exchange") {
+			case "kraken":
+				exchange.UseLogger(log, "kraken")
+				ex = &exchange.Kraken{}
+			case "binance":
+				return cli.Exit(fmt.Sprintf("Binance Exchange not implemented yet"), 4)
+			default:
+				return cli.Exit(fmt.Sprintf("Only supported exchange are ['kraken', 'binance']"), 1)
+			}
+
+			ex.Config(c.String("api-key"), c.String("secret-key"))
+
+			// Load Notification Plugin
+			switch c.String("notifier") {
+			case "simplepush":
+				notifier.UseLogger(log, "simplepush")
+				nf = &notifier.SimplePush{}
+			case "stdout":
+				notifier.UseLogger(log, "stdout")
+				nf = &notifier.Stdout{}
+			default:
+				return cli.Exit(fmt.Sprintf("Only supported notifiers are ['stdout', 'simplepush']"), 1)
+			}
+
+			nf.Config(c)
+
 			return nil
 		},
 		After: func(c *cli.Context) error {
+			// Notify at the end of the run
+			title := fmt.Sprintf("%s - %s Sats",
+				strings.Title(c.String("exchange")),
+				strings.Title(action),
+			)
+
+			err := nf.Notify(title, result)
+
+			if err != nil {
+				return cli.Exit(fmt.Sprintf("Notification Error: %s", err), 1)
+			}
+
 			return nil
 		},
 	}
