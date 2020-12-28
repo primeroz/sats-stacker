@@ -3,7 +3,7 @@ VERSION := $(shell git describe --tags || echo $(BUILD))
 
 #GOPLUGINS = kraken binance
 # Use linker flags to provide version/build settings
-LDFLAGS=-ldflags "-X=main.Version=$(VERSION)"
+LDFLAGS=-ldflags "-s -w -X=main.Version=$(VERSION)"
 
 # Make is verbose in Linux. Make it silent.
 MAKEFLAGS += --silent
