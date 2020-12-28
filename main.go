@@ -47,7 +47,7 @@ func main() {
 	usage := `
 		a cli-tool to stack, and withdraw, sats on exchanges.
 
-		more information on usage will follow	
+		more information on usage will follow
 `
 
 	flags := []cli.Flag{
@@ -228,12 +228,15 @@ func main() {
 				exchange.UseLogger(log, "kraken")
 				ex = &exchange.Kraken{}
 			case "binance":
-				return cli.Exit(fmt.Sprintf("Binance Exchange not implemented yet"), 4)
+				return cli.Exit("Binance Exchange not implemented yet", 4)
 			default:
-				return cli.Exit(fmt.Sprintf("Only supported exchange are ['kraken', 'binance']"), 1)
+				return cli.Exit("Only supported exchange are ['kraken', 'binance']", 1)
 			}
 
-			ex.Config(c.String("api-key"), c.String("secret-key"))
+			err := ex.Config(c.String("api-key"), c.String("secret-key"))
+			if err != nil {
+				return cli.Exit(fmt.Sprintf("Error Configuring the Exchange Plugin: %s", err), 1)
+			}
 
 			// Load Notification Plugin
 			switch c.String("notifier") {
@@ -244,10 +247,13 @@ func main() {
 				notifier.UseLogger(log, "stdout")
 				nf = &notifier.Stdout{}
 			default:
-				return cli.Exit(fmt.Sprintf("Only supported notifiers are ['stdout', 'simplepush']"), 1)
+				return cli.Exit("Only supported notifiers are ['stdout', 'simplepush']", 1)
 			}
 
-			nf.Config(c)
+			err = nf.Config(c)
+			if err != nil {
+				return cli.Exit(fmt.Sprintf("Error Configuring the Notification Plugin: %s", err), 1)
+			}
 
 			return nil
 		},

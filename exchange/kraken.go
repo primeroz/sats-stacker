@@ -49,13 +49,13 @@ func (k *Kraken) Stack(amount float64, fiat string, orderType string, dryRun boo
 	}
 	// Extract Values from Kraken Responses
 	refBalance := reflect.ValueOf(balance)
-	balanceCryptoPreOrder := reflect.Indirect(refBalance).FieldByName("X" + k.Crypto)
-	balanceFiatPreOrder := reflect.Indirect(refBalance).FieldByName("Z" + strings.ToUpper(fiat))
+	balanceCryptoPreOrder := reflect.Indirect(refBalance).FieldByName("X" + k.Crypto).Interface().(float64)
+	balanceFiatPreOrder := reflect.Indirect(refBalance).FieldByName("Z" + strings.ToUpper(fiat)).Interface().(float64)
 
 	// Get the current ticker for the given PAIR
 	ticker, err := api.Ticker(pair)
 	if err != nil {
-		return "", errors.New(fmt.Sprintf("Failed to get ticker for pair %s: %s", pair, err))
+		return "", fmt.Errorf("Failed to get ticker for pair %s: %s", pair, err)
 	}
 
 	log.WithFields(logrus.Fields{
@@ -70,21 +70,21 @@ func (k *Kraken) Stack(amount float64, fiat string, orderType string, dryRun boo
 	ask := ticker.GetPairTickerInfo(pair).Ask[0]
 	price, err := strconv.ParseFloat(ask, 64)
 	if err != nil {
-		return "", errors.New(fmt.Sprintf("Failed to get Ask price for pair %s: %s", pair, err))
+		return "", fmt.Errorf("Failed to get Ask price for pair %s: %s", pair, err)
 	}
 
 	volume := (amount / price)
 	volumeString := strconv.FormatFloat(volume, 'f', 8, 64)
 	// If volume < 0.001 then error - this is the minimum kraken order volume
 	if volume < 0.001 {
-		return "", errors.New(fmt.Sprintf("Minimum volume for BTC Order on Kraken is 0.001 got %s. Consider increasing the amount of Fiat", volumeString))
+		return "", fmt.Errorf("Minimum volume for BTC Order on Kraken is 0.001 got %s. Consider increasing the amount of Fiat", volumeString)
 	}
 
 	switch orderType {
 	case "market", "limit":
 		break
 	default:
-		return "", errors.New(fmt.Sprintf("Unsupporter order type %s , only ['limit', 'market']", orderType))
+		return "", fmt.Errorf("Unsupporter order type %s , only ['limit', 'market']", orderType)
 	}
 
 	args := make(map[string]string)
@@ -113,7 +113,7 @@ func (k *Kraken) Stack(amount float64, fiat string, orderType string, dryRun boo
 	order, err := api.AddOrder(pair, "buy", orderType, volumeString, args)
 
 	if err != nil {
-		return "", errors.New(fmt.Sprintf("Failed to place order: %s", err))
+		return "", fmt.Errorf("Failed to place order: %s", err)
 	}
 
 	var orderId string
@@ -202,9 +202,11 @@ func (k *Kraken) Withdraw(address string, maxFee float64, dryRun bool) (result s
 		return fmt.Sprintf(`💡 Relative fee of withdrawal: %.2f%%
 ❌ Fees are too high for withdrawal
 
+👛 Kraken Address: %s
 💰 Withdraw Amount %s: %.8f
 🏦 Kraken Fees: %.8f`,
 			relativeFeeHumanReadable,
+			address,
 			k.Crypto,
 			&limitWithdraw,
 			&feeWithdraw,
@@ -222,12 +224,14 @@ func (k *Kraken) Withdraw(address string, maxFee float64, dryRun bool) (result s
 	return fmt.Sprintf(`💡 Relative fee of withdrawal: %.2f%%
 ✔️ Initiating Withdrawal
 
+👛 Kraken Address: %s
 💰 Withdraw Amount %s: %.8f
 🏦 Kraken Fees: %.8f
 
 📎 Transatcion: %s`,
 
 		relativeFeeHumanReadable,
+		address,
 		k.Crypto,
 		&limitWithdraw,
 		&feeWithdraw,

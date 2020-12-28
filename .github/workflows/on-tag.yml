@@ -30,6 +30,9 @@ jobs:
     - name: Checkout project
       uses: actions/checkout@v2
 
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v2
+
     - name: Setup Docker buildx action
       uses: crazy-max/ghaction-docker-buildx@v1
       id: buildx

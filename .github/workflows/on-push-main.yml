@@ -19,6 +19,9 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v2
 
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v2
+
     - name: Set env variables
       run: |
         echo "BRANCH=$(echo ${GITHUB_REF#refs/heads/} | sed 's/\//-/g')" >> $GITHUB_ENV
