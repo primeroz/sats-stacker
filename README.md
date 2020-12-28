@@ -12,6 +12,43 @@ This tool is loosely based on [dennisreimann/stacking-sats-kraken](https://githu
 
 ## Configuration
 
+## Help
+
+* Global Options
+```
+GLOBAL OPTIONS:
+   --debug, -d            debug logging (default: false) [$STACKER_DEBUG]
+   --dry-run, --validate  dry-run (default: true) [$STACKER_VALIDATE, $STACKER_DRY_RUN]
+   --exchange value       Exchange ['kraken', 'binance'] (default: "kraken") [$STACKER_EXCHANGE]
+   --api-key value        Exchange Api Key [$STACKER_API_KEY]
+   --secret-key value     Exchange Api Secret [$STACKER_SECRET_KEY, $STACKER_API_SECRET]
+   --notifier value       What notifier to use ['stdout','simplepush'] (default: "stdout") [$STACKER_NOTIFIER]
+   --sp-encrypt           Simplepush: If set, the message will be sent end-to-end encrypted with the provided Password/Salt. If false, the message is sent unencrypted. (default: true) [$STACKER_SP_ENCRYPT]
+   --sp-key value         Simplepush: Your simplepush.io Key [$STACKER_SP_KEY]
+   --sp-event value       Simplepush: The event the message should be associated with [$STACKER_SP_EVENT]
+   --sp-password value    Simplepush: Encryption Password [$STACKER_SP_PASSWORD]
+   --sp-salt value        Simplepush: The salt for the encrypted message [$STACKER_SP_SALT]
+   --help, -h             show help (default: false)
+   --version, -v          print the version (default: false)
+```
+
+* Stack command options
+```
+OPTIONS:
+   --amount value                    Amount of fiat to exchange (default: 0) [$STACKER_STACK_AMOUNT]
+   --fiat value                      Fiat to exchange [$STACKER_STACK_FIAT]
+   --order-type value, --type value  Order type (default: "limit") [$STACKER_STACK_ORDER_TYPE]
+   --help, -h                        show help (default: false)
+```
+
+* Withdraw command options
+```
+OPTIONS:
+   --max-fee value  Max fee in percentage, only withdraw if the relative fee does not exceed this limit (default: 0) [$STACKER_WITHDRAW_MAX_FEE]
+   --address value  Address to withdraw to, the actual value will depend on the exchange selected [$STACKER_WITHDRAW_ADDRESS]
+   --help, -h       show help (default: false)
+```
+
 ### Kraken
 
 You will need to get your Kraken API Key and Secret Key from the [Api Settings page](https://www.kraken.com/u/settings/api).
