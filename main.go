@@ -264,10 +264,13 @@ func main() {
 				strings.Title(action),
 			)
 
-			err := nf.Notify(title, result)
+			// Do not notify if result is not set ( for example if the required args where not specified )
+			if result != "" {
+				err := nf.Notify(title, result)
 
-			if err != nil {
-				return cli.Exit(fmt.Sprintf("Notification Error: %s", err), 1)
+				if err != nil {
+					return cli.Exit(fmt.Sprintf("Notification Error: %s", err), 1)
+				}
 			}
 
 			return nil
