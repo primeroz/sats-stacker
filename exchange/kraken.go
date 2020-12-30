@@ -118,7 +118,7 @@ func (k *Kraken) Stack(amount float64, fiat string, orderType string, dryRun boo
 
 	var orderId string
 	if dryRun {
-		orderId = "DryRun"
+		orderId = "DRY-RUN"
 	} else {
 		orderId = strings.Join(order.TransactionIds, ",")
 	}
