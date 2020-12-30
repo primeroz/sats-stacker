@@ -179,62 +179,50 @@ func (k *Kraken) Withdraw(address string, maxFee float64, dryRun bool) (result s
 
 	// Place Withdrawal when fee is low enough ( relatively )
 	checkMaxFee := relativeFee.Cmp(new(big.Float).SetFloat64(maxFee / 100.0))
+
+	withdrawLog := log.WithFields(logrus.Fields{
+		"action":      "withdraw",
+		"amount":      fmt.Sprintf("%.8f", &limitWithdraw),
+		"krakenFee":   fmt.Sprintf("%.8f", &feeWithdraw),
+		"key":         address,
+		"dryRun":      strconv.FormatBool(dryRun),
+		"relativeFee": fmt.Sprintf("%.2f%%", relativeFeeHumanReadable),
+		"maxFee":      fmt.Sprintf("%.2f%%", maxFee),
+	})
+
+	// Build slice of strings for message to return
+	returnMsg := []string{fmt.Sprintf("💡 Relative fee of withdrawal: %.2f%%", relativeFeeHumanReadable)}
+
 	// relativeFee < maxFee/100
 	if checkMaxFee < 0 {
-		log.WithFields(logrus.Fields{
-			"action":      "withdraw",
-			"amount":      fmt.Sprintf("%.8f", &limitWithdraw),
-			"krakenFee":   fmt.Sprintf("%.8f", &feeWithdraw),
-			"key":         address,
-			"relativeFee": fmt.Sprintf("%.2f%%", relativeFeeHumanReadable),
-			"maxFee":      fmt.Sprintf("%.2f%%", maxFee),
-		}).Debug(fmt.Sprintf("Initiating Withdrawal of %.8f %s", &limitWithdraw, k.Crypto))
+		withdrawLog.Info(fmt.Sprintf("Initiating Withdrawal of %.8f %s", &limitWithdraw, k.Crypto))
+		returnMsg = append(returnMsg, "✔️ Initiating Withdrawall\n")
 	} else {
-		log.WithFields(logrus.Fields{
-			"action":      "withdraw",
-			"amount":      fmt.Sprintf("%.8f", &limitWithdraw),
-			"krakenFee":   fmt.Sprintf("%.8f", &feeWithdraw),
-			"key":         address,
-			"relativeFee": fmt.Sprintf("%.2f%%", relativeFeeHumanReadable),
-			"maxFee":      fmt.Sprintf("%.2f%%", maxFee),
-		}).Debug(fmt.Sprintf("Fees are too high for withdrawal: %.2f%%", relativeFeeHumanReadable))
-
-		return fmt.Sprintf(`💡 Relative fee of withdrawal: %.2f%%
-❌ Fees are too high for withdrawal
-
-👛 Kraken Address: %s
-💰 Withdraw Amount %s: %.8f
-🏦 Kraken Fees: %.8f`,
-			relativeFeeHumanReadable,
-			address,
-			k.Crypto,
-			&limitWithdraw,
-			&feeWithdraw,
-		), nil
+		withdrawLog.Info(fmt.Sprintf("Fees are too high for withdrawal: %.2f%%", relativeFeeHumanReadable))
+		returnMsg = append(returnMsg, "❌ Fees are too high for withdrawal\n")
 	}
 
-	withdrawResp, err := api.Withdraw(k.Crypto, address, &limitWithdraw)
+	returnMsg = append(returnMsg, fmt.Sprintf("👛 Kraken Address: %s", address))
+	returnMsg = append(returnMsg, fmt.Sprintf("💰 Withdraw Amount %s: %.8f", k.Crypto, &limitWithdraw))
+	returnMsg = append(returnMsg, fmt.Sprintf("🏦 Kraken Fees: %.8f", &feeWithdraw))
 
-	if err != nil {
-		return "", err
+	if dryRun {
+		returnMsg = append(returnMsg, fmt.Sprintf("\n📎 Transatcion: %s", "DRY-RUN"))
+	} else {
+		// do perform Withdraw
+		if checkMaxFee < 0 {
+			withdrawResp, err := api.Withdraw(k.Crypto, address, &limitWithdraw)
+
+			if err != nil {
+				return "", err
+			}
+
+			returnMsg = append(returnMsg, fmt.Sprintf("\n📎 Transatcion: %s", withdrawResp.RefID))
+		} else {
+			returnMsg = append(returnMsg, fmt.Sprintf("\n📎 Transatcion: %s", "Not ready to withdraw with those fees"))
+		}
 	}
 
-	withdrawReferenceId := withdrawResp.RefID
+	return strings.Join(returnMsg, "\n"), nil
 
-	return fmt.Sprintf(`💡 Relative fee of withdrawal: %.2f%%
-✔️ Initiating Withdrawal
-
-👛 Kraken Address: %s
-💰 Withdraw Amount %s: %.8f
-🏦 Kraken Fees: %.8f
-
-📎 Transatcion: %s`,
-
-		relativeFeeHumanReadable,
-		address,
-		k.Crypto,
-		&limitWithdraw,
-		&feeWithdraw,
-		withdrawReferenceId,
-	), nil
 }
