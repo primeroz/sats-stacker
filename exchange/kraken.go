@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Kraken struct {
@@ -27,6 +28,88 @@ func (k *Kraken) Config(apiKey string, secretKey string) error {
 	k.Crypto = "XBT"
 
 	return nil
+}
+
+func (k *Kraken) BuyTheDip(amount float64, fiat string, interval string, numberOrders int64, ordersDiscountPercentage int64, highPriceDays int64, highPriceGapPercentage int64, dryRun bool) (result string, e error) {
+
+	// Define a user refernce to use to identify the orders placed by us
+	const userRef = "2021876122"
+
+	log.WithFields(logrus.Fields{
+		"action":  "btd",
+		"userRef": userRef,
+	}).Info("Trying to buy the Next DIP on " + k.Name)
+
+	// Initialize stack action
+	// Pair to work on - kraken XXBTZ<FIAT>
+	pair := strings.ToUpper("X" + k.Crypto + "Z" + fiat)
+
+	// Get API Object , Balance and Ticker from Kraken
+	api := krakenapi.New(k.ApiKey, k.SecretKey)
+
+	// Get the current balance before any stacking is done
+	balance, err := api.Balance()
+	if err != nil {
+		return "", errors.New("Failed to get Balance. Check API and SECRET Keys")
+	}
+
+	// Extract Values from Kraken Responses
+	refBalance := reflect.ValueOf(balance)
+	balanceCryptoPreOrder := reflect.Indirect(refBalance).FieldByName("X" + k.Crypto).Interface().(float64)
+	balanceFiatPreOrder := reflect.Indirect(refBalance).FieldByName("Z" + strings.ToUpper(fiat)).Interface().(float64)
+
+	// Get the current ticker for the given PAIR
+	ticker, err := api.Ticker(pair)
+	if err != nil {
+		return "", fmt.Errorf("Failed to get ticker for pair %s: %s", pair, err)
+	}
+
+	ask := ticker.GetPairTickerInfo(pair).Ask[0]
+	price, err := strconv.ParseFloat(ask, 64)
+	if err != nil {
+		return "", fmt.Errorf("Failed to get Ask price for pair %s: %s", pair, err)
+	}
+
+	log.WithFields(logrus.Fields{
+		"action":        "btd",
+		"crypto":        k.Crypto,
+		"cryptoBalance": balanceCryptoPreOrder,
+		"fiat":          strings.ToUpper(fiat),
+		"fiatBalance":   balanceFiatPreOrder,
+		"ask":           price,
+	}).Debug("Balance before any action is taken")
+
+	// Get Closed orders for the Interval specified
+	loc, err := time.LoadLocation("Local")
+	if err != nil {
+		return "", err
+	}
+	t := time.Now().In(loc)
+	year, month, day := t.Date()
+
+	var start int64
+	end := t.Unix()
+
+	switch interval {
+	case "daily":
+		start = time.Date(year, month, day, 0, 0, 0, 0, t.Location()).Unix()
+	case "weekly":
+		start = time.Date(year, month, day-7, 0, 0, 0, 0, t.Location()).Unix()
+	case "monthly":
+		start = time.Date(year, month-1, day, 0, 0, 0, 0, t.Location()).Unix()
+	}
+
+	args := make(map[string]string)
+	//args["trades"] = "any position"
+	args["userref"] = userRef
+
+	closedOrders, err := api.TradesHistory(start, end, args)
+	if err != nil {
+		return "", fmt.Errorf("Failed to get closed Orders: %s", err)
+	}
+	fmt.Printf("%#v", closedOrders)
+	return "", fmt.Errorf("\nNot Implemented Yet")
+
 }
 
 func (k *Kraken) Stack(amount float64, fiat string, orderType string, dryRun bool) (result string, e error) {
