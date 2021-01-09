@@ -1,9 +1,12 @@
 package exchange
 
+import "github.com/urfave/cli/v2"
+
 // Exchange is an interface that would allow for different implementations of exchange to be used
 type Exchange interface {
-	Config(apiKey string, secretKey string) (err error)
-	Stack(amount float64, fiat string, orderType string, dryRun bool) (result string, err error)
-	BuyTheDip(amount float64, fiat string, interval string, numberOrders int64, ordersDiscountPercentage int64, highPriceDays int64, highPriceGapPercentage int64, dryRun bool) (result string, err error)
-	Withdraw(address string, maxFee float64, dryRun bool) (result string, err error)
+	Config(c *cli.Context) (err error)
+	Init(c *cli.Context) (err error)
+	Stack(c *cli.Context) (result string, err error)
+	BuyTheDip(c *cli.Context) (result string, err error)
+	Withdraw(c *cli.Context) (result string, err error)
 }

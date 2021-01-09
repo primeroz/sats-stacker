@@ -150,12 +150,16 @@ func main() {
 			},
 		},
 		Action: func(c *cli.Context) error {
-
-			var err error
-			result, err = ex.Stack(c.Float64("amount"), c.String("fiat"), c.String("order-type"), c.Bool("dry-run"))
-
 			action = "stack"
 
+			var err error
+
+			err = ex.Init(c)
+			if err != nil {
+				return cli.Exit(err, 1)
+			}
+
+			result, err = ex.Stack(c)
 			if err != nil {
 				return cli.Exit(err, 1)
 			}
@@ -213,6 +217,7 @@ func main() {
 			},
 		},
 		Action: func(c *cli.Context) error {
+			action = "btd"
 
 			// This is only supported on the kraken exchange
 			if c.String("exchange") != "kraken" {
@@ -227,19 +232,13 @@ func main() {
 			}
 
 			var err error
-			result, err = ex.BuyTheDip(
-				c.Float64("amount"),
-				c.String("fiat"),
-				c.String("interval"),
-				c.Int64("n-orders"),
-				c.Int64("orders-discount-percentage"),
-				c.Int64("high-price-days"),
-				c.Int64("high-price-gap-percentage"),
-				c.Bool("dry-run"),
-			)
 
-			action = "btd"
+			err = ex.Init(c)
+			if err != nil {
+				return cli.Exit(err, 1)
+			}
 
+			result, err = ex.BuyTheDip(c)
 			if err != nil {
 				return cli.Exit(err, 1)
 			}
@@ -267,11 +266,15 @@ func main() {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			var err error
-			result, err = ex.Withdraw(c.String("address"), c.Float64("max-fee"), c.Bool("dry-run"))
-
 			action = "withdraw"
+			var err error
 
+			err = ex.Init(c)
+			if err != nil {
+				return cli.Exit(err, 1)
+			}
+
+			result, err = ex.Withdraw(c)
 			if err != nil {
 				return cli.Exit(err, 1)
 			}
@@ -319,7 +322,7 @@ func main() {
 				return cli.Exit("Only supported exchange are ['kraken', 'binance']", 1)
 			}
 
-			err := ex.Config(c.String("api-key"), c.String("secret-key"))
+			err := ex.Config(c)
 			if err != nil {
 				return cli.Exit(fmt.Sprintf("Error Configuring the Exchange Plugin: %s", err), 1)
 			}
