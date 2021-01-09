@@ -10,11 +10,12 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	//"time"
+	"time"
 )
 
 type Kraken struct {
 	Name          string
+	Action        string
 	ApiKey        string
 	SecretKey     string
 	Crypto        string
@@ -27,6 +28,22 @@ type Kraken struct {
 	Ask           string
 	AskFloat      float64
 	UserRef       int32
+}
+
+func getTimeInfo() (time.Time, time.Time, time.Duration) {
+	// Always use the local timezone
+	loc, _ := time.LoadLocation("Local")
+
+	now := time.Now().In(loc)
+	year, month, day := now.Date()
+
+	// Start is TODAY at 00:00
+	start := time.Date(year, month, day, 0, 0, 0, 0, now.Location())
+
+	// END is now
+	end := now
+
+	return start, end, end.Sub(start)
 }
 
 func (k *Kraken) Config(c *cli.Context) error {
@@ -44,7 +61,9 @@ func (k *Kraken) Init(c *cli.Context) error {
 
 	k.Api = krakenapi.New(k.ApiKey, k.SecretKey)
 
-	if c.Command.FullName() != "withdraw" {
+	k.Action = c.Command.FullName()
+
+	if k.Action != "withdraw" {
 		// Initialize the current Balance
 		balance, err := k.Api.Balance()
 		if err != nil {
@@ -73,18 +92,90 @@ func (k *Kraken) Init(c *cli.Context) error {
 	return nil
 }
 
-func (k *Kraken) BuyTheDip(c *cli.Context) (result string, e error) {
+func (k *Kraken) closedOrderTodayForUserRef(orders *krakenapi.ClosedOrdersResponse, c *cli.Context) (string, krakenapi.Order, error) {
 
-	// Define a user refernce to use to identify the orders placed by us
-	k.UserRef = 2021876122
+	for id, v := range orders.Closed {
+		if v.Status == "closed" {
+			return id, v, nil
+		}
+	}
+	return "", krakenapi.Order{}, nil
+}
+
+func (k *Kraken) createOrderArgs(c *cli.Context, longshot bool) (map[string]string, error) {
+
+	args := make(map[string]string)
+	var volume float64
+	var price string
+
+	// Simple DCA
+	if k.Action == "stack" {
+		volume = (c.Float64("amount") / k.AskFloat)
+		args["orderType"] = "market"
+
+		price = k.Ask // For a market volume this is not used, just set for logging purposes
+	} else if k.Action == "dda" {
+		//if !longshot {
+		//	//discountPercentage := c.Float64("dip-percentage")
+		//	//_, _, timeDiff := getTimeInfo()
+
+		//	// Calculate percentage modifier based on gap from Max High over last 7 days
+		//	// Calculate percentage modifier based on time from 00:00 of today
+		//	// numberOfSeconds in 23 timeDiff.Seconds()
+
+		//} else {
+
+		//}
+	} else {
+		return args, fmt.Errorf("Unknown Action: %s", k.Action)
+	}
+
+	validate := "false"
+	if c.Bool("dry-run") {
+		validate = "true"
+		args["validate"] = "true"
+	}
+
+	args["userref"] = fmt.Sprintf("%d", k.UserRef)
+	args["volume"] = strconv.FormatFloat(volume, 'f', 8, 64)
+	args["price"] = price
+	args["oflags"] = "fciq" // "buy" button will actually sell the quote currency in exchange for the base currency, pay fee in the the quote currenty ( fiat )
+
+	// If volume < 0.001 then error - this is the minimum kraken order volume
+	if volume < 0.001 {
+		return args, fmt.Errorf("Minimum volume for BTC Order on Kraken is 0.001 got %s. Consider increasing the amount of Fiat", args["volume"])
+	}
 
 	log.WithFields(logrus.Fields{
-		"action":  "btd",
-		"userRef": k.UserRef,
+		"action":     k.Action,
+		"pair":       k.Pair,
+		"type":       "buy",
+		"orderType":  args["orderType"],
+		"volume":     args["volume"],
+		"price":      args["price"],
+		"dryrun":     validate,
+		"orderFlags": args["oflags"],
+		"userref":    args["userref"],
+	}).Debug("Order to execute")
+
+	return args, nil
+}
+
+func (k *Kraken) DollarDipAverage(c *cli.Context) (result string, e error) {
+
+	// Define a user refernce to use to identify the orders placed by us
+	// k.UserRef is the DDA order
+	// k.UserRef+1 is the Long-Shot DDA order
+	k.UserRef = 2000000001
+
+	log.WithFields(logrus.Fields{
+		"action":          "dda",
+		"userRef":         k.UserRef,
+		"userRefLongShot": k.UserRef + 1,
 	}).Info("Trying to buy the Next DIP on " + k.Name)
 
 	log.WithFields(logrus.Fields{
-		"action":        "btd",
+		"action":        "dda",
 		"crypto":        k.Crypto,
 		"cryptoBalance": k.BalanceCrypto,
 		"fiat":          k.Fiat,
@@ -92,42 +183,94 @@ func (k *Kraken) BuyTheDip(c *cli.Context) (result string, e error) {
 		"ask":           k.Ask,
 	}).Debug("Balance before any action is taken")
 
-	// Get Closed orders for the Interval specified
-	//loc, err := time.LoadLocation("Local")
-	//if err != nil {
-	//	return "", err
-	//}
-	//t := time.Now().In(loc)
-	//year, month, day := t.Date()
+	start, end, _ := getTimeInfo()
 
-	//var start int64
-	//end := t.Unix()
+	closedOrdersArgs := make(map[string]string)
+	closedOrdersArgs["trades"] = "false"
+	closedOrdersArgs["start"] = fmt.Sprintf("%d", start.Unix())
+	closedOrdersArgs["end"] = fmt.Sprintf("%d", end.Unix())
+	closedOrdersArgs["closetime"] = "open"
+	//closedOrdersArgs["userref"] = fmt.Sprintf("%d", k.UserRef)
 
-	//switch interval {
-	//case "daily":
-	//	start = time.Date(year, month, day, 0, 0, 0, 0, t.Location()).Unix()
-	//case "weekly":
-	//	start = time.Date(year, month, day-7, 0, 0, 0, 0, t.Location()).Unix()
-	//case "monthly":
-	//	start = time.Date(year, month-1, day, 0, 0, 0, 0, t.Location()).Unix()
-	//}
+	// GET Main DDA Closed Orders
+	log.WithFields(logrus.Fields{
+		"action":    "dda",
+		"interval":  c.String("interval"),
+		"trades":    closedOrdersArgs["trades"],
+		"userref":   closedOrdersArgs["userref"],
+		"start":     start.Format(time.RFC822),
+		"end":       end.Format(time.RFC822),
+		"startUnix": closedOrdersArgs["start"],
+		"endUnix":   closedOrdersArgs["end"],
+		"closetime": closedOrdersArgs["closetime"],
+	}).Debug("Getting Main DDA closed orders")
 
-	//args := make(map[string]string)
-	////args["trades"] = "any position"
-	//args["userref"] = userRef
+	ddaClosedOrders, err := k.Api.ClosedOrders(closedOrdersArgs)
+	if err != nil {
+		return "", fmt.Errorf("Failed to get closed Orders: %s", err)
+	}
 
-	//closedOrders, err := api.TradesHistory(start, end, args)
-	//if err != nil {
-	//	return "", fmt.Errorf("Failed to get closed Orders: %s", err)
-	//}
+	ddaOrderId, _, err := k.closedOrderTodayForUserRef(ddaClosedOrders, c)
+	if err != nil {
+		return "", fmt.Errorf("Failed to check closed orders: %s", err)
+	}
 
-	//fmt.Printf("%#v", closedOrders)
+	if ddaOrderId == "" {
+		fmt.Printf("\nPlace new DDA Order")
+	} else {
+		log.WithFields(logrus.Fields{
+			"action":          "dda",
+			"closedOrderType": "DDA",
+			"OrderId":         ddaOrderId,
+			"UserRef":         k.UserRef,
+			"start":           start.Format(time.RFC822),
+			"end":             end.Format(time.RFC822),
+		}).Debug("Closed order of type DDA found. Skipping")
+	}
+
+	// GET LongShot DDA Closed Orders
+	//closedOrdersArgs["userref"] = fmt.Sprintf("%d", k.UserRef+1)
+	log.WithFields(logrus.Fields{
+		"action":    "dda",
+		"interval":  c.String("interval"),
+		"trades":    closedOrdersArgs["trades"],
+		"userref":   closedOrdersArgs["userref"],
+		"start":     start.Format(time.RFC822),
+		"end":       end.Format(time.RFC822),
+		"startUnix": closedOrdersArgs["start"],
+		"endUnix":   closedOrdersArgs["end"],
+		"closetime": closedOrdersArgs["closetime"],
+	}).Debug("Getting Long-Shot DDA closed orders")
+
+	lsDdaClosedOrders, err := k.Api.ClosedOrders(closedOrdersArgs)
+	if err != nil {
+		return "", fmt.Errorf("Failed to get closed Orders: %s", err)
+	}
+
+	lsDdaOrderId, _, err := k.closedOrderTodayForUserRef(lsDdaClosedOrders, c)
+	if err != nil {
+		return "", fmt.Errorf("Failed to check closed orders: %s", err)
+	}
+
+	if lsDdaOrderId == "" {
+		fmt.Printf("\nPlace new Long-Shot DDA Order")
+	} else {
+		log.WithFields(logrus.Fields{
+			"action":          "dda",
+			"closedOrderType": "Long-Shot DDA",
+			"OrderId":         lsDdaOrderId,
+			"UserRef":         k.UserRef + 1,
+			"start":           start.Format(time.RFC822),
+			"end":             end.Format(time.RFC822),
+		}).Debug("Closed order of type Long-Shot DDA found. Skipping")
+	}
+
 	return "", fmt.Errorf("\nNot Implemented Yet")
 }
 
 func (k *Kraken) Stack(c *cli.Context) (result string, e error) {
 
-	k.UserRef = 2021876123
+	k.UserRef = 1000000001
 
 	log.WithFields(logrus.Fields{
 		"action":  "stack",
@@ -143,45 +286,13 @@ func (k *Kraken) Stack(c *cli.Context) (result string, e error) {
 		"ask":           k.Ask,
 	}).Debug("Balance before placing the Order")
 
-	volume := (c.Float64("amount") / k.AskFloat)
-	volumeString := strconv.FormatFloat(volume, 'f', 8, 64)
-	// If volume < 0.001 then error - this is the minimum kraken order volume
-	if volume < 0.001 {
-		return "", fmt.Errorf("Minimum volume for BTC Order on Kraken is 0.001 got %s. Consider increasing the amount of Fiat", volumeString)
+	orderArgs, err := k.createOrderArgs(c, false)
+	if err != nil {
+		return "", fmt.Errorf("Failed to create args to place order: %s", err)
 	}
-
-	switch c.String("order-type") {
-	case "market", "limit":
-		break
-	default:
-		return "", fmt.Errorf("Unsupporter order type %s , only ['limit', 'market']", c.String("order-type"))
-	}
-
-	args := make(map[string]string)
-
-	validate := "false"
-	if c.Bool("dry-run") {
-		validate = "true"
-		args["validate"] = "true"
-	}
-
-	args["price"] = k.Ask   // for Market order this is not used
-	args["oflags"] = "fciq" // "buy" button will actually sell the quote currency in exchange for the base currency, pay fee in the the quote currenty ( fiat )
-
-	log.WithFields(logrus.Fields{
-		"action":     "stack",
-		"pair":       k.Pair,
-		"type":       "buy",
-		"orderType":  c.String("order-type"),
-		"volume":     volumeString,
-		"price":      args["price"],
-		"dryrun":     validate,
-		"orderFlags": args["oflags"],
-	}).Debug("Order to execute")
 
 	// Place the Order
-	order, err := k.Api.AddOrder(k.Pair, "buy", c.String("order-type"), volumeString, args)
-
+	order, err := k.Api.AddOrder(k.Pair, "buy", orderArgs["orderType"], orderArgs["volume"], orderArgs)
 	if err != nil {
 		return "", fmt.Errorf("Failed to place order: %s", err)
 	}
@@ -197,11 +308,12 @@ func (k *Kraken) Stack(c *cli.Context) (result string, e error) {
 		"action":     "stack",
 		"order":      order.Description.Order,
 		"orderId":    orderId,
-		"dryrun":     validate,
-		"orderType":  c.String("order-type"),
-		"volume":     volumeString,
-		"price":      args["price"],
-		"orderFlags": args["oflags"],
+		"dryrun":     orderArgs["validate"],
+		"orderType":  orderArgs["orderType"],
+		"volume":     orderArgs["volume"],
+		"price":      orderArgs["price"],
+		"orderFlags": orderArgs["oflags"],
+		"userref":    orderArgs["userref"],
 	}).Info("Order Placed")
 
 	orderResultMessage := fmt.Sprintf(`🙌 %s order successful
@@ -214,7 +326,7 @@ func (k *Kraken) Stack(c *cli.Context) (result string, e error) {
 
 💸: %s
 📎 Transatcion: %s`,
-		strings.Title(c.String("order-type")),
+		orderArgs["orderType"],
 		k.Crypto,
 		k.BalanceCrypto,
 		k.Fiat,

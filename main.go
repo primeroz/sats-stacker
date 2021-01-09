@@ -141,13 +141,6 @@ func main() {
 				EnvVars:  []string{"STACKER_STACK_FIAT"},
 				Required: true,
 			},
-			&cli.StringFlag{
-				Name:    "order-type",
-				Aliases: []string{"type"},
-				Value:   "limit",
-				Usage:   "Order type",
-				EnvVars: []string{"STACKER_STACK_ORDER_TYPE"},
-			},
 		},
 		Action: func(c *cli.Context) error {
 			action = "stack"
@@ -168,46 +161,47 @@ func main() {
 		},
 	}
 
-	buyTheDipCommand := cli.Command{
-		Name:        "btd",
-		Usage:       "Buy the dip",
-		Description: "Stack some sats trying to buy the dip",
+	dollarDipAverage := cli.Command{
+		Name:  "dda",
+		Usage: "Dollar Dip Average",
+		Description: `Try to stack some sats daily catching the DIP
+
+It will try to fill at least one order with a decreasing discount starting at 00:00 to 23:59
+
+It will also try to place a long-shot discounted order every day
+
+Depending on the difference between the last 7 days high price and the current ask price an adjustment to the discount will be applied
+`,
 		Flags: []cli.Flag{
 			&cli.Float64Flag{
 				Name:     "amount",
-				Usage:    "Amount of fiat to allocate to the BTD strategy",
-				EnvVars:  []string{"STACKER_BTD_AMOUNT"},
+				Usage:    "Amount of fiat to allocate to the each order",
+				EnvVars:  []string{"STACKER_DDA_AMOUNT"},
 				Required: true,
 			},
-			&cli.StringFlag{
-				Name:    "interval",
-				Value:   "daily",
-				Usage:   "Interval for the BTD engine ['daily','weekly','monthly']",
-				EnvVars: []string{"STACKER_BTD_INTERVAL"},
-			},
 			&cli.Int64Flag{
-				Name:    "n-orders",
-				Value:   2,
-				Usage:   "Max number of orders to place and complete in the interval",
-				EnvVars: []string{"STACKER_BTD_NUMBER_ORDERS"},
-			},
-			&cli.Int64Flag{
-				Name:    "orders-discount-percentage",
+				Name:    "dip-percentage",
 				Value:   10,
-				Usage:   "discount to use to place orders",
-				EnvVars: []string{"STACKER_BTD_ORDERS_DISCOUNT_PERCENTAGE"},
+				Usage:   "Initial percentage of the dip, it will decrease during the day so to fill at some point",
+				EnvVars: []string{"STACKER_DDA_DIP_PERCENTAGE"},
+			},
+			&cli.Int64Flag{
+				Name:    "long-shot-percentage",
+				Value:   25,
+				Usage:   "Discount of the dip for the long shot order",
+				EnvVars: []string{"STACKER_DDA_LONG_SHOT_PERCENTAGE"},
 			},
 			&cli.Int64Flag{
 				Name:    "high-price-days",
 				Value:   7,
 				Usage:   "Days behind to use to detect max-price",
-				EnvVars: []string{"STACKER_BTD_HIGH_PRICE_DAYS"},
+				EnvVars: []string{"STACKER_DDA_HIGH_PRICE_DAYS"},
 			},
 			&cli.Int64Flag{
 				Name:    "high-price-gap-percentage",
 				Value:   5,
 				Usage:   "Gap between current price and high price detected to trigger reducing the dip order percentage",
-				EnvVars: []string{"STACKER_BTD_HIGH_PRICE_GAP_PERCENTAGE"},
+				EnvVars: []string{"STACKER_DDA_HIGH_PRICE_GAP_PERCENTAGE"},
 			},
 			&cli.StringFlag{
 				Name:     "fiat",
@@ -217,18 +211,11 @@ func main() {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			action = "btd"
+			action = "dda"
 
 			// This is only supported on the kraken exchange
 			if c.String("exchange") != "kraken" {
 				return cli.Exit("The btd is only supported on the Kraken exchange", 1)
-			}
-
-			switch c.String("interval") {
-			case "daily", "weekly", "monthly":
-				break
-			default:
-				return cli.Exit("Invalid value for <interval> flag", 1)
 			}
 
 			var err error
@@ -238,7 +225,7 @@ func main() {
 				return cli.Exit(err, 1)
 			}
 
-			result, err = ex.BuyTheDip(c)
+			result, err = ex.DollarDipAverage(c)
 			if err != nil {
 				return cli.Exit(err, 1)
 			}
@@ -285,7 +272,7 @@ func main() {
 
 	allCommands := []*cli.Command{
 		&stackCommand,
-		&buyTheDipCommand,
+		&dollarDipAverage,
 		&withdrawCommand,
 	}
 
