@@ -102,18 +102,15 @@ func (k *Kraken) closedOrderTodayForUserRef(orders *krakenapi.ClosedOrdersRespon
 	return "", krakenapi.Order{}, nil
 }
 
-func (k *Kraken) createOrderArgs(c *cli.Context, longshot bool) (map[string]string, error) {
+func (k *Kraken) createOrderArgs(c *cli.Context, volume float64, price string, longshot bool) (map[string]string, error) {
 
 	args := make(map[string]string)
-	var volume float64
-	var price string
 
 	// Simple DCA
 	if k.Action == "stack" {
-		volume = (c.Float64("amount") / k.AskFloat)
 		args["orderType"] = "market"
-
-		price = k.Ask // For a market volume this is not used, just set for logging purposes
+	} else if k.Action == "btd" {
+		args["orderType"] = "limit"
 	} else if k.Action == "dda" {
 		//if !longshot {
 		//	//discountPercentage := c.Float64("dip-percentage")
@@ -161,12 +158,164 @@ func (k *Kraken) createOrderArgs(c *cli.Context, longshot bool) (map[string]stri
 	return args, nil
 }
 
+func (k *Kraken) BuyTheDips(c *cli.Context) (result string, e error) {
+	k.UserRef = 300
+
+	log.WithFields(logrus.Fields{
+		"action":  "btd",
+		"userRef": k.UserRef,
+	}).Info("Buying the DIPs on " + k.Name)
+
+	log.WithFields(logrus.Fields{
+		"action":        "btd",
+		"crypto":        k.Crypto,
+		"cryptoBalance": k.BalanceCrypto,
+		"fiat":          k.Fiat,
+		"fiatBalance":   k.BalanceFiat,
+		"ask":           k.Ask,
+		"budget":        c.Float64("budget"),
+		"n-orders":      c.Int64("n-orders"),
+	}).Debug("Balance before any action is taken")
+
+	// Calculate order values from budget
+	// Each _Unit_ will have the double the value of the unit before
+	var totalOrderUnits int64
+	var fiatValueUnit float64
+	var cryptoVolumeUnit float64
+
+	totalOrders := c.Int64("n-orders")
+	for totalOrders != 0 {
+		totalOrderUnits += totalOrders
+		totalOrders -= 1
+	}
+
+	fiatValueUnit = c.Float64("budget") / float64(totalOrderUnits)
+	cryptoVolumeUnit = fiatValueUnit / k.AskFloat
+
+	//var dipOrders []map[string]string
+
+	log.WithFields(logrus.Fields{
+		"action":             "btd",
+		"budget":             c.Float64("budget"),
+		"total-sats":         fmt.Sprintf("%.8f", c.Float64("budget")/k.AskFloat),
+		"dip-percentage":     c.Int64("dip-percentage"),
+		"dip-increments":     c.Int64("dip-increments"),
+		"n-orders":           c.Int64("n-orders"),
+		"total-units":        totalOrderUnits,
+		"fiat-value-unit":    fiatValueUnit,
+		"crypto-volume-unit": cryptoVolumeUnit,
+	}).Debug("Calculating orders")
+
+	var dipOrders []map[string]string
+
+	var orderNumber int64
+	for orderNumber != c.Int64("n-orders") {
+		//Calculate DIP Discount for this order
+		discount := c.Int64("dip-percentage") + (orderNumber * c.Int64("dip-increments"))
+		dipDiscountedPrice := (k.AskFloat / float64(100)) * float64(int64(100)-discount)
+		dipVolume := cryptoVolumeUnit * float64(orderNumber+1)
+
+		log.WithFields(logrus.Fields{
+			"action":       "btd",
+			"order-number": orderNumber + 1,
+			"ask-price":    k.Ask,
+			"dip-discount": discount,
+			"dip-price":    dipDiscountedPrice,
+			"dip-volume":   dipVolume,
+		}).Debug(fmt.Sprintf("Creating discounted order %d", orderNumber+1))
+
+		// Create Order and add to list
+		dipOrderArgs, _ := k.createOrderArgs(c, dipVolume, fmt.Sprintf("%.1f", dipDiscountedPrice), false)
+
+		// If volume < 0.001 then do not add to the list, skip to next iteration
+		if dipVolume < 0.001 {
+			orderNumber += 1
+			continue
+		}
+
+		dipOrders = append(dipOrders, dipOrderArgs)
+		log.WithFields(logrus.Fields{
+			"action":       "btd",
+			"order-number": orderNumber + 1,
+		}).Debug("Added Order to list")
+
+		orderNumber += 1
+	}
+
+	if len(dipOrders) == 0 {
+		return "", fmt.Errorf("No Orders were added to the list")
+	}
+
+	//Cancel any open order with our UserRef
+	if !c.Bool("dry-run") {
+		openordersArgs := make(map[string]string)
+		//openordersArgs["trades"] = "true"
+		openordersArgs["userref"] = fmt.Sprintf("%d", k.UserRef)
+
+		resp, _ := k.Api.OpenOrders(openordersArgs)
+		if len(resp.Open) > 0 {
+
+			_, err := k.Api.CancelOrder(fmt.Sprintf("%d", k.UserRef))
+			fmt.Printf("\n%s\n", err)
+			if err != nil {
+				return "", fmt.Errorf("Failed to Cancel Orders for UserRef: %d - %s", k.UserRef, err)
+			}
+
+			log.WithFields(logrus.Fields{
+				"action":  "btd",
+				"userref": k.UserRef,
+			}).Info(fmt.Sprintf("%d Open Orders Canceled", len(resp.Open)))
+		}
+	}
+
+	//Place Orders
+	orderNumber = 0
+	for orderNumber != int64(len(dipOrders)) {
+		thisOrder := dipOrders[orderNumber]
+		order, err := k.Api.AddOrder(k.Pair, "buy", thisOrder["orderType"], thisOrder["volume"], thisOrder)
+		if err != nil {
+			log.WithFields(logrus.Fields{
+				"action":       "btd",
+				"userref":      thisOrder["userref"],
+				"order-number": orderNumber + 1,
+			}).Error(fmt.Sprintf("Error Creating orderNumber %d: %s", orderNumber+1, err))
+
+			orderNumber += 1
+			continue
+		}
+
+		var orderId string
+		if c.Bool("dry-run") {
+			orderId = "DRY-RUN"
+		} else {
+			orderId = strings.Join(order.TransactionIds, ",")
+		}
+
+		log.WithFields(logrus.Fields{
+			"action":       "btd",
+			"order":        order.Description.Order,
+			"orderId":      orderId,
+			"order-number": orderNumber + 1,
+			"dryrun":       thisOrder["validate"],
+			"orderType":    thisOrder["orderType"],
+			"volume":       thisOrder["volume"],
+			"price":        thisOrder["price"],
+			"orderFlags":   thisOrder["oflags"],
+			"userref":      thisOrder["userref"],
+		}).Info(fmt.Sprintf("Order Placed %d", orderNumber+1))
+
+		orderNumber += 1
+	}
+
+	return "", nil
+}
+
 func (k *Kraken) DollarDipAverage(c *cli.Context) (result string, e error) {
 
 	// Define a user refernce to use to identify the orders placed by us
 	// k.UserRef is the DDA order
 	// k.UserRef+1 is the Long-Shot DDA order
-	k.UserRef = 2000000001
+	k.UserRef = 200
 
 	log.WithFields(logrus.Fields{
 		"action":          "dda",
@@ -270,7 +419,7 @@ func (k *Kraken) DollarDipAverage(c *cli.Context) (result string, e error) {
 
 func (k *Kraken) Stack(c *cli.Context) (result string, e error) {
 
-	k.UserRef = 1000000001
+	k.UserRef = 100
 
 	log.WithFields(logrus.Fields{
 		"action":  "stack",
@@ -286,7 +435,8 @@ func (k *Kraken) Stack(c *cli.Context) (result string, e error) {
 		"ask":           k.Ask,
 	}).Debug("Balance before placing the Order")
 
-	orderArgs, err := k.createOrderArgs(c, false)
+	volume := (c.Float64("amount") / k.AskFloat)
+	orderArgs, err := k.createOrderArgs(c, volume, k.Ask, false)
 	if err != nil {
 		return "", fmt.Errorf("Failed to create args to place order: %s", err)
 	}
@@ -294,6 +444,10 @@ func (k *Kraken) Stack(c *cli.Context) (result string, e error) {
 	// Place the Order
 	order, err := k.Api.AddOrder(k.Pair, "buy", orderArgs["orderType"], orderArgs["volume"], orderArgs)
 	if err != nil {
+		log.WithFields(logrus.Fields{
+			"action":  "btd",
+			"userref": k.UserRef,
+		}).Error(fmt.Sprintf("Error Creating order: %s", err))
 		return "", fmt.Errorf("Failed to place order: %s", err)
 	}
 

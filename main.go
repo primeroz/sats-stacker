@@ -161,7 +161,7 @@ func main() {
 		},
 	}
 
-	dollarDipAverage := cli.Command{
+	dollarDipAverageCommand := cli.Command{
 		Name:  "dda",
 		Usage: "Dollar Dip Average",
 		Description: `Try to stack some sats daily catching the DIP
@@ -213,11 +213,6 @@ Depending on the difference between the last 7 days high price and the current a
 		Action: func(c *cli.Context) error {
 			action = "dda"
 
-			// This is only supported on the kraken exchange
-			if c.String("exchange") != "kraken" {
-				return cli.Exit("The btd is only supported on the Kraken exchange", 1)
-			}
-
 			var err error
 
 			err = ex.Init(c)
@@ -226,6 +221,76 @@ Depending on the difference between the last 7 days high price and the current a
 			}
 
 			result, err = ex.DollarDipAverage(c)
+			if err != nil {
+				return cli.Exit(err, 1)
+			}
+
+			return nil
+		},
+	}
+
+	buyTheDipsCommand := cli.Command{
+		Name:  "btd",
+		Usage: "Buy the DIPs",
+		Description: `Places a series of orders to buy the DIPs at different discount prices
+
+More Description here
+`,
+		Flags: []cli.Flag{
+			&cli.Float64Flag{
+				Name:     "budget",
+				Usage:    "Budget to allocate for the DIPs, set to 0 to allocate all of the available budget",
+				EnvVars:  []string{"STACKER_BTD_BUDGET"},
+				Required: true,
+			},
+			&cli.Int64Flag{
+				Name:    "dip-percentage",
+				Value:   10,
+				Usage:   "Initial percentage of the firt dip, the other values will be calculated",
+				EnvVars: []string{"STACKER_BTD_DIP_PERCENTAGE"},
+			},
+			&cli.Int64Flag{
+				Name:    "dip-increments",
+				Value:   5,
+				Usage:   "Increment of dip percentage for each order",
+				EnvVars: []string{"STACKER_BTD_DIP_INCREMENTS_PERCENTAGE"},
+			},
+			&cli.Int64Flag{
+				Name:    "n-orders",
+				Value:   5,
+				Usage:   "Number of DIPS orders to place",
+				EnvVars: []string{"STACKER_BTD_DIP_N_ORDERS"},
+			},
+			&cli.Int64Flag{
+				Name:    "high-price-days-modifier",
+				Value:   7,
+				Usage:   "Days behind to use to detect max-price",
+				EnvVars: []string{"STACKER_BTD_HIGH_PRICE_DAYS"},
+			},
+			&cli.Int64Flag{
+				Name:    "high-price-gap-percentage",
+				Value:   5,
+				Usage:   "Gap between current price and high price to trigger modifier",
+				EnvVars: []string{"STACKER_BTD_HIGH_PRICE_GAP_PERCENTAGE"},
+			},
+			&cli.StringFlag{
+				Name:     "fiat",
+				Usage:    "Fiat to exchange",
+				EnvVars:  []string{"STACKER_BTD_FIAT"},
+				Required: true,
+			},
+		},
+		Action: func(c *cli.Context) error {
+			action = "btd"
+
+			var err error
+
+			err = ex.Init(c)
+			if err != nil {
+				return cli.Exit(err, 1)
+			}
+
+			result, err = ex.BuyTheDips(c)
 			if err != nil {
 				return cli.Exit(err, 1)
 			}
@@ -272,7 +337,8 @@ Depending on the difference between the last 7 days high price and the current a
 
 	allCommands := []*cli.Command{
 		&stackCommand,
-		&dollarDipAverage,
+		&dollarDipAverageCommand,
+		&buyTheDipsCommand,
 		&withdrawCommand,
 	}
 
