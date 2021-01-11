@@ -159,6 +159,7 @@ func (k *Kraken) createOrderArgs(c *cli.Context, volume float64, price string, l
 }
 
 func (k *Kraken) BuyTheDips(c *cli.Context) (result string, e error) {
+	// TODO: Handle cancel only mode and do not cancel orders in that case so we might get the orders ?
 	k.UserRef = 300
 
 	log.WithFields(logrus.Fields{
@@ -181,7 +182,6 @@ func (k *Kraken) BuyTheDips(c *cli.Context) (result string, e error) {
 	// Each _Unit_ will have the double the value of the unit before
 	var totalOrderUnits int64
 	var fiatValueUnit float64
-	var cryptoVolumeUnit float64
 
 	totalOrders := c.Int64("n-orders")
 	for totalOrders != 0 {
@@ -190,20 +190,18 @@ func (k *Kraken) BuyTheDips(c *cli.Context) (result string, e error) {
 	}
 
 	fiatValueUnit = c.Float64("budget") / float64(totalOrderUnits)
-	cryptoVolumeUnit = fiatValueUnit / k.AskFloat
 
 	//var dipOrders []map[string]string
 
 	log.WithFields(logrus.Fields{
-		"action":             "btd",
-		"budget":             c.Float64("budget"),
-		"total-sats":         fmt.Sprintf("%.8f", c.Float64("budget")/k.AskFloat),
-		"dip-percentage":     c.Int64("dip-percentage"),
-		"dip-increments":     c.Int64("dip-increments"),
-		"n-orders":           c.Int64("n-orders"),
-		"total-units":        totalOrderUnits,
-		"fiat-value-unit":    fiatValueUnit,
-		"crypto-volume-unit": cryptoVolumeUnit,
+		"action":          "btd",
+		"budget":          c.Float64("budget"),
+		"total-sats":      fmt.Sprintf("%.8f", c.Float64("budget")/k.AskFloat),
+		"dip-percentage":  c.Int64("dip-percentage"),
+		"dip-increments":  c.Int64("dip-increments"),
+		"n-orders":        c.Int64("n-orders"),
+		"total-units":     totalOrderUnits,
+		"fiat-value-unit": fiatValueUnit,
 	}).Debug("Calculating orders")
 
 	var dipOrders []map[string]string
@@ -213,7 +211,7 @@ func (k *Kraken) BuyTheDips(c *cli.Context) (result string, e error) {
 		//Calculate DIP Discount for this order
 		discount := c.Int64("dip-percentage") + (orderNumber * c.Int64("dip-increments"))
 		dipDiscountedPrice := (k.AskFloat / float64(100)) * float64(int64(100)-discount)
-		dipVolume := cryptoVolumeUnit * float64(orderNumber+1)
+		dipVolume := (fiatValueUnit * float64(orderNumber+1)) / dipDiscountedPrice
 
 		log.WithFields(logrus.Fields{
 			"action":       "btd",
@@ -256,7 +254,6 @@ func (k *Kraken) BuyTheDips(c *cli.Context) (result string, e error) {
 		if len(resp.Open) > 0 {
 
 			_, err := k.Api.CancelOrder(fmt.Sprintf("%d", k.UserRef))
-			fmt.Printf("\n%s\n", err)
 			if err != nil {
 				return "", fmt.Errorf("Failed to Cancel Orders for UserRef: %d - %s", k.UserRef, err)
 			}
@@ -299,6 +296,7 @@ func (k *Kraken) BuyTheDips(c *cli.Context) (result string, e error) {
 			"dryrun":       thisOrder["validate"],
 			"orderType":    thisOrder["orderType"],
 			"volume":       thisOrder["volume"],
+			"askPrice":     k.Ask,
 			"price":        thisOrder["price"],
 			"orderFlags":   thisOrder["oflags"],
 			"userref":      thisOrder["userref"],
