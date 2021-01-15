@@ -3,7 +3,7 @@ package exchange
 import (
 	"errors"
 	"fmt"
-	"github.com/beldur/kraken-go-api-client"
+	"github.com/primeroz/kraken-go-api-client"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"math/big"
@@ -102,6 +102,54 @@ func (k *Kraken) Init(c *cli.Context) error {
 //	return "", krakenapi.Order{}, nil
 //}
 
+func (k *Kraken) priceModifierBasedOnGapFromHighPrice(c *cli.Context) (float64, error) {
+
+	// 15 interval will give a week worth of data
+	ohlcs, err := k.Api.OHLC(k.Pair, "15")
+	if err != nil {
+		return 0.0, fmt.Errorf("Failed to get OHLC Data for pair %s: %s", k.Pair, err)
+	}
+
+	// Find highest price in the range of OHLC
+	var highest float64
+	for _, o := range ohlcs.OHLC {
+		if o.High > highest {
+			highest = o.High
+		}
+	}
+
+	// max modifier is 40% ( applied to the discount price ) when the gap is >= 25%
+	maxDiscountModifier := 40.0
+	var discountModifier float64
+	// Is the highest price from the last week more than GAP PERCENTAGE over the current ask price ?
+	gapPrice := highest - k.AskFloat
+	if gapPrice > 0 {
+		gapPercentage := gapPrice / highest * 100
+		if gapPercentage > c.Float64("high-price-gap-percentage") {
+
+			// calculate modifier
+			discountModifier = gapPercentage / 25.0 * maxDiscountModifier
+			if discountModifier > maxDiscountModifier {
+				discountModifier = maxDiscountModifier
+			}
+
+			log.WithFields(logrus.Fields{
+				"action":             k.Action,
+				"pair":               k.Pair,
+				"arg-gap-interval":   "7d",
+				"arg-gap-percentage": c.Float64("high-price-gap-percentage"),
+				"highest":            highest,
+				"ask":                k.AskFloat,
+				"gap":                gapPrice,
+				"gap-percentage":     gapPercentage,
+				"discount-modifier":  discountModifier,
+			}).Debug("Price Gap calculator")
+		}
+	}
+
+	return discountModifier, nil
+}
+
 func (k *Kraken) createOrderArgs(c *cli.Context, volume float64, price string, longshot bool) (map[string]string, error) {
 
 	args := make(map[string]string)
@@ -197,17 +245,25 @@ func (k *Kraken) BuyTheDips(c *cli.Context) (result string, e error) {
 	var dipOrders []map[string]string
 
 	var orderNumber int64
+	//Calculate DIP Discount for this order
+	modifier, err := k.priceModifierBasedOnGapFromHighPrice(c)
+	if err != nil {
+		modifier = 0.0
+	}
+
 	for orderNumber != c.Int64("n-orders") {
-		//Calculate DIP Discount for this order
-		discount := c.Int64("dip-percentage") + (orderNumber * c.Int64("dip-increments"))
-		dipDiscountedPrice := (k.AskFloat / float64(100)) * float64(int64(100)-discount)
+		// Discount based on order number
+		discount := float64(c.Int64("dip-percentage") + (orderNumber * c.Int64("dip-increments")))
+		// Calculate modifier to apply to discount based on the gap from the Highest Weekly price
+		discountModifier := (float64(discount) * modifier) / float64(100.0)
+		dipDiscountedPrice := (k.AskFloat / float64(100)) * (float64(100.0) - discount + discountModifier)
 		dipVolume := (fiatValueUnit * float64(orderNumber+1)) / dipDiscountedPrice
 
 		log.WithFields(logrus.Fields{
 			"action":       "btd",
 			"order-number": orderNumber + 1,
 			"ask-price":    k.Ask,
-			"dip-discount": discount,
+			"dip-discount": discount - discountModifier,
 			"dip-price":    dipDiscountedPrice,
 			"dip-volume":   dipVolume,
 		}).Debug(fmt.Sprintf("Creating discounted order %d", orderNumber+1))

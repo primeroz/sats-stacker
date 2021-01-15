@@ -196,6 +196,7 @@ More Description here
 			&cli.Int64Flag{
 				Name:    "high-price-days-modifier",
 				Value:   7,
+				Hidden:  true,
 				Usage:   "Days behind to use to detect max-price",
 				EnvVars: []string{"STACKER_BTD_HIGH_PRICE_DAYS"},
 			},
