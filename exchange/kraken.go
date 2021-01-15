@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"time"
+	//"time"
 )
 
 type Kraken struct {
@@ -30,21 +30,21 @@ type Kraken struct {
 	UserRef       int32
 }
 
-func getTimeInfo() (time.Time, time.Time, time.Duration) {
-	// Always use the local timezone
-	loc, _ := time.LoadLocation("Local")
-
-	now := time.Now().In(loc)
-	year, month, day := now.Date()
-
-	// Start is TODAY at 00:00
-	start := time.Date(year, month, day, 0, 0, 0, 0, now.Location())
-
-	// END is now
-	end := now
-
-	return start, end, end.Sub(start)
-}
+//func getTimeInfo() (time.Time, time.Time, time.Duration) {
+//	// Always use the local timezone
+//	loc, _ := time.LoadLocation("Local")
+//
+//	now := time.Now().In(loc)
+//	year, month, day := now.Date()
+//
+//	// Start is TODAY at 00:00
+//	start := time.Date(year, month, day, 0, 0, 0, 0, now.Location())
+//
+//	// END is now
+//	end := now
+//
+//	return start, end, end.Sub(start)
+//}
 
 func (k *Kraken) Config(c *cli.Context) error {
 	k.Name = strings.ToTitle("kraken")
@@ -92,15 +92,15 @@ func (k *Kraken) Init(c *cli.Context) error {
 	return nil
 }
 
-func (k *Kraken) closedOrderTodayForUserRef(orders *krakenapi.ClosedOrdersResponse, c *cli.Context) (string, krakenapi.Order, error) {
-
-	for id, v := range orders.Closed {
-		if v.Status == "closed" {
-			return id, v, nil
-		}
-	}
-	return "", krakenapi.Order{}, nil
-}
+//func (k *Kraken) closedOrderTodayForUserRef(orders *krakenapi.ClosedOrdersResponse, c *cli.Context) (string, krakenapi.Order, error) {
+//
+//	for id, v := range orders.Closed {
+//		if v.Status == "closed" {
+//			return id, v, nil
+//		}
+//	}
+//	return "", krakenapi.Order{}, nil
+//}
 
 func (k *Kraken) createOrderArgs(c *cli.Context, volume float64, price string, longshot bool) (map[string]string, error) {
 
@@ -111,18 +111,6 @@ func (k *Kraken) createOrderArgs(c *cli.Context, volume float64, price string, l
 		args["orderType"] = "market"
 	} else if k.Action == "btd" {
 		args["orderType"] = "limit"
-	} else if k.Action == "dda" {
-		//if !longshot {
-		//	//discountPercentage := c.Float64("dip-percentage")
-		//	//_, _, timeDiff := getTimeInfo()
-
-		//	// Calculate percentage modifier based on gap from Max High over last 7 days
-		//	// Calculate percentage modifier based on time from 00:00 of today
-		//	// numberOfSeconds in 23 timeDiff.Seconds()
-
-		//} else {
-
-		//}
 	} else {
 		return args, fmt.Errorf("Unknown Action: %s", k.Action)
 	}
@@ -160,6 +148,8 @@ func (k *Kraken) createOrderArgs(c *cli.Context, volume float64, price string, l
 
 func (k *Kraken) BuyTheDips(c *cli.Context) (result string, e error) {
 	// TODO: Handle cancel only mode and do not cancel orders in that case so we might get the orders ?
+	// TODO: Support Dollar Dip Average mode - only buy if not bought today
+	// TODO: Add modifier support for weekly gap from high price
 	k.UserRef = 300
 
 	log.WithFields(logrus.Fields{
@@ -306,113 +296,6 @@ func (k *Kraken) BuyTheDips(c *cli.Context) (result string, e error) {
 	}
 
 	return "", nil
-}
-
-func (k *Kraken) DollarDipAverage(c *cli.Context) (result string, e error) {
-
-	// Define a user refernce to use to identify the orders placed by us
-	// k.UserRef is the DDA order
-	// k.UserRef+1 is the Long-Shot DDA order
-	k.UserRef = 200
-
-	log.WithFields(logrus.Fields{
-		"action":          "dda",
-		"userRef":         k.UserRef,
-		"userRefLongShot": k.UserRef + 1,
-	}).Info("Trying to buy the Next DIP on " + k.Name)
-
-	log.WithFields(logrus.Fields{
-		"action":        "dda",
-		"crypto":        k.Crypto,
-		"cryptoBalance": k.BalanceCrypto,
-		"fiat":          k.Fiat,
-		"fiatBalance":   k.BalanceFiat,
-		"ask":           k.Ask,
-	}).Debug("Balance before any action is taken")
-
-	start, end, _ := getTimeInfo()
-
-	closedOrdersArgs := make(map[string]string)
-	closedOrdersArgs["trades"] = "false"
-	closedOrdersArgs["start"] = fmt.Sprintf("%d", start.Unix())
-	closedOrdersArgs["end"] = fmt.Sprintf("%d", end.Unix())
-	closedOrdersArgs["closetime"] = "open"
-	//closedOrdersArgs["userref"] = fmt.Sprintf("%d", k.UserRef)
-
-	// GET Main DDA Closed Orders
-	log.WithFields(logrus.Fields{
-		"action":    "dda",
-		"interval":  c.String("interval"),
-		"trades":    closedOrdersArgs["trades"],
-		"userref":   closedOrdersArgs["userref"],
-		"start":     start.Format(time.RFC822),
-		"end":       end.Format(time.RFC822),
-		"startUnix": closedOrdersArgs["start"],
-		"endUnix":   closedOrdersArgs["end"],
-		"closetime": closedOrdersArgs["closetime"],
-	}).Debug("Getting Main DDA closed orders")
-
-	ddaClosedOrders, err := k.Api.ClosedOrders(closedOrdersArgs)
-	if err != nil {
-		return "", fmt.Errorf("Failed to get closed Orders: %s", err)
-	}
-
-	ddaOrderId, _, err := k.closedOrderTodayForUserRef(ddaClosedOrders, c)
-	if err != nil {
-		return "", fmt.Errorf("Failed to check closed orders: %s", err)
-	}
-
-	if ddaOrderId == "" {
-		fmt.Printf("\nPlace new DDA Order")
-	} else {
-		log.WithFields(logrus.Fields{
-			"action":          "dda",
-			"closedOrderType": "DDA",
-			"OrderId":         ddaOrderId,
-			"UserRef":         k.UserRef,
-			"start":           start.Format(time.RFC822),
-			"end":             end.Format(time.RFC822),
-		}).Debug("Closed order of type DDA found. Skipping")
-	}
-
-	// GET LongShot DDA Closed Orders
-	//closedOrdersArgs["userref"] = fmt.Sprintf("%d", k.UserRef+1)
-	log.WithFields(logrus.Fields{
-		"action":    "dda",
-		"interval":  c.String("interval"),
-		"trades":    closedOrdersArgs["trades"],
-		"userref":   closedOrdersArgs["userref"],
-		"start":     start.Format(time.RFC822),
-		"end":       end.Format(time.RFC822),
-		"startUnix": closedOrdersArgs["start"],
-		"endUnix":   closedOrdersArgs["end"],
-		"closetime": closedOrdersArgs["closetime"],
-	}).Debug("Getting Long-Shot DDA closed orders")
-
-	lsDdaClosedOrders, err := k.Api.ClosedOrders(closedOrdersArgs)
-	if err != nil {
-		return "", fmt.Errorf("Failed to get closed Orders: %s", err)
-	}
-
-	lsDdaOrderId, _, err := k.closedOrderTodayForUserRef(lsDdaClosedOrders, c)
-	if err != nil {
-		return "", fmt.Errorf("Failed to check closed orders: %s", err)
-	}
-
-	if lsDdaOrderId == "" {
-		fmt.Printf("\nPlace new Long-Shot DDA Order")
-	} else {
-		log.WithFields(logrus.Fields{
-			"action":          "dda",
-			"closedOrderType": "Long-Shot DDA",
-			"OrderId":         lsDdaOrderId,
-			"UserRef":         k.UserRef + 1,
-			"start":           start.Format(time.RFC822),
-			"end":             end.Format(time.RFC822),
-		}).Debug("Closed order of type Long-Shot DDA found. Skipping")
-	}
-
-	return "", fmt.Errorf("\nNot Implemented Yet")
 }
 
 func (k *Kraken) Stack(c *cli.Context) (result string, e error) {

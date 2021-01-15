@@ -161,74 +161,6 @@ func main() {
 		},
 	}
 
-	dollarDipAverageCommand := cli.Command{
-		Name:  "dda",
-		Usage: "Dollar Dip Average",
-		Description: `Try to stack some sats daily catching the DIP
-
-It will try to fill at least one order with a decreasing discount starting at 00:00 to 23:59
-
-It will also try to place a long-shot discounted order every day
-
-Depending on the difference between the last 7 days high price and the current ask price an adjustment to the discount will be applied
-`,
-		Flags: []cli.Flag{
-			&cli.Float64Flag{
-				Name:     "amount",
-				Usage:    "Amount of fiat to allocate to the each order",
-				EnvVars:  []string{"STACKER_DDA_AMOUNT"},
-				Required: true,
-			},
-			&cli.Int64Flag{
-				Name:    "dip-percentage",
-				Value:   10,
-				Usage:   "Initial percentage of the dip, it will decrease during the day so to fill at some point",
-				EnvVars: []string{"STACKER_DDA_DIP_PERCENTAGE"},
-			},
-			&cli.Int64Flag{
-				Name:    "long-shot-percentage",
-				Value:   25,
-				Usage:   "Discount of the dip for the long shot order",
-				EnvVars: []string{"STACKER_DDA_LONG_SHOT_PERCENTAGE"},
-			},
-			&cli.Int64Flag{
-				Name:    "high-price-days",
-				Value:   7,
-				Usage:   "Days behind to use to detect max-price",
-				EnvVars: []string{"STACKER_DDA_HIGH_PRICE_DAYS"},
-			},
-			&cli.Int64Flag{
-				Name:    "high-price-gap-percentage",
-				Value:   5,
-				Usage:   "Gap between current price and high price detected to trigger reducing the dip order percentage",
-				EnvVars: []string{"STACKER_DDA_HIGH_PRICE_GAP_PERCENTAGE"},
-			},
-			&cli.StringFlag{
-				Name:     "fiat",
-				Usage:    "Fiat to exchange",
-				EnvVars:  []string{"STACKER_BTD_FIAT"},
-				Required: true,
-			},
-		},
-		Action: func(c *cli.Context) error {
-			action = "dda"
-
-			var err error
-
-			err = ex.Init(c)
-			if err != nil {
-				return cli.Exit(err, 1)
-			}
-
-			result, err = ex.DollarDipAverage(c)
-			if err != nil {
-				return cli.Exit(err, 1)
-			}
-
-			return nil
-		},
-	}
-
 	buyTheDipsCommand := cli.Command{
 		Name:  "btd",
 		Usage: "Buy the DIPs",
@@ -337,7 +269,6 @@ More Description here
 
 	allCommands := []*cli.Command{
 		&stackCommand,
-		&dollarDipAverageCommand,
 		&buyTheDipsCommand,
 		&withdrawCommand,
 	}

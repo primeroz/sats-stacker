@@ -7,7 +7,6 @@ type Exchange interface {
 	Config(c *cli.Context) (err error)
 	Init(c *cli.Context) (err error)
 	Stack(c *cli.Context) (result string, err error)
-	DollarDipAverage(c *cli.Context) (result string, err error)
 	BuyTheDips(c *cli.Context) (result string, err error)
 	Withdraw(c *cli.Context) (result string, err error)
 }
