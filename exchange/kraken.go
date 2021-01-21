@@ -105,7 +105,7 @@ func (k *Kraken) Init(c *cli.Context) error {
 func (k *Kraken) priceModifierBasedOnGapFromHighPrice(c *cli.Context) (float64, error) {
 
 	// 15 interval will give a week worth of data
-	ohlcs, err := k.Api.OHLC(k.Pair, "15")
+	ohlcs, err := k.Api.OHLCWithInterval(k.Pair, "15")
 	if err != nil {
 		return 0.0, fmt.Errorf("Failed to get OHLC Data for pair %s: %s", k.Pair, err)
 	}
