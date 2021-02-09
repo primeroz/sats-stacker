@@ -30,6 +30,8 @@ type Kraken struct {
 	UserRef       int32
 }
 
+const MIN_BTC_AMOUNT = 0.0002
+
 //func getTimeInfo() (time.Time, time.Time, time.Duration) {
 //	// Always use the local timezone
 //	loc, _ := time.LoadLocation("Local")
@@ -174,9 +176,9 @@ func (k *Kraken) createOrderArgs(c *cli.Context, volume float64, price string, l
 	args["price"] = price
 	args["oflags"] = "fciq" // "buy" button will actually sell the quote currency in exchange for the base currency, pay fee in the the quote currenty ( fiat )
 
-	// If volume < 0.001 then error - this is the minimum kraken order volume
-	if volume < 0.001 {
-		return args, fmt.Errorf("Minimum volume for BTC Order on Kraken is 0.001 got %s. Consider increasing the amount of Fiat", args["volume"])
+	// If volume < MIN_BTC_AMOUNT then error - this is the minimum kraken order volume
+	if volume < MIN_BTC_AMOUNT {
+		return args, fmt.Errorf("Minimum volume for BTC Order on Kraken is %f got %s. Consider increasing the amount of Fiat", MIN_BTC_AMOUNT, args["volume"])
 	}
 
 	log.WithFields(logrus.Fields{
