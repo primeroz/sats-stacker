@@ -273,8 +273,8 @@ func (k *Kraken) BuyTheDips(c *cli.Context) (result string, e error) {
 		// Create Order and add to list
 		dipOrderArgs, _ := k.createOrderArgs(c, dipVolume, fmt.Sprintf("%.1f", dipDiscountedPrice), false)
 
-		// If volume < 0.001 then do not add to the list, skip to next iteration
-		if dipVolume < 0.001 {
+		// If volume < MIN_BTC_AMOUNT then do not add to the list, skip to next iteration
+		if dipVolume < MIN_BTC_AMOUNT {
 			orderNumber += 1
 			continue
 		}
