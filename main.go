@@ -13,11 +13,12 @@ import (
 	"sats-stacker/notifier"
 )
 
-// Variable to hold global
+// Global Variables
 var log = logrus.New()
 var ex exchange.Exchange
 var nf notifier.Notifier
 
+// TODO Use a struct for result and set action inside of it rather than use 2 string variables
 var result string
 var action string
 
@@ -45,9 +46,7 @@ func init() {
 
 func main() {
 	usage := `
-		a cli-tool to stack, and withdraw, sats on exchanges.
-
-		more information on usage will follow
+		a cli-tool to stack sats on exchanges.
 `
 
 	flags := []cli.Flag{
@@ -124,80 +123,156 @@ func main() {
 		},
 	}
 
-	stackCommand := []*cli.Command{
-		{
-			Name:        "stack",
-			Usage:       "Stack some sats",
-			Description: "Stack some sats full description",
-			Flags: []cli.Flag{
-				&cli.Float64Flag{
-					Name:     "amount",
-					Usage:    "Amount of fiat to exchange",
-					EnvVars:  []string{"STACKER_STACK_AMOUNT"},
-					Required: true,
-				},
-				&cli.StringFlag{
-					Name:     "fiat",
-					Usage:    "Fiat to exchange",
-					EnvVars:  []string{"STACKER_STACK_FIAT"},
-					Required: true,
-				},
-				&cli.StringFlag{
-					Name:    "order-type",
-					Aliases: []string{"type"},
-					Value:   "limit",
-					Usage:   "Order type",
-					EnvVars: []string{"STACKER_STACK_ORDER_TYPE"},
-				},
+	stackCommand := cli.Command{
+		Name:        "stack",
+		Usage:       "Stack some sats",
+		Description: "Stack some sats at market value, best used for DCA (Dollar Cost Averaging)",
+		Flags: []cli.Flag{
+			&cli.Float64Flag{
+				Name:     "amount",
+				Usage:    "Amount of fiat to exchange",
+				EnvVars:  []string{"STACKER_STACK_AMOUNT"},
+				Required: true,
 			},
-			Action: func(c *cli.Context) error {
-
-				var err error
-				result, err = ex.Stack(c.Float64("amount"), c.String("fiat"), c.String("order-type"), c.Bool("dry-run"))
-
-				action = "stack"
-
-				if err != nil {
-					return cli.Exit(err, 1)
-				}
-
-				return nil
+			&cli.StringFlag{
+				Name:     "fiat",
+				Usage:    "Fiat to exchange",
+				EnvVars:  []string{"STACKER_STACK_FIAT"},
+				Required: true,
 			},
+		},
+		Action: func(c *cli.Context) error {
+			action = "stack"
+
+			var err error
+
+			// Initialize the exchange plugin
+			err = ex.Init(c)
+			if err != nil {
+				return cli.Exit(err, 1)
+			}
+
+			// Stack sats on the exchange selected
+			result, err = ex.Stack(c)
+			if err != nil {
+				return cli.Exit(err, 1)
+			}
+
+			return nil
 		},
 	}
 
-	withdrawCommand := []*cli.Command{
-		{
-			Name:        "withdraw",
-			Usage:       "Withdraw some sats",
-			Description: "Withdraw some sats from full description",
-			Flags: []cli.Flag{
-				&cli.Float64Flag{
-					Name:     "max-fee",
-					Usage:    "Max fee in percentage, only withdraw if the relative fee does not exceed this limit",
-					EnvVars:  []string{"STACKER_WITHDRAW_MAX_FEE"},
-					Required: true,
-				},
-				&cli.StringFlag{
-					Name:     "address",
-					Usage:    "Address to withdraw to, the actual value will depend on the exchange selected",
-					EnvVars:  []string{"STACKER_WITHDRAW_ADDRESS"},
-					Required: true,
-				},
+	buyTheDipsCommand := cli.Command{
+		Name:  "btd",
+		Usage: "Buy the DIPs",
+		Description: `Places a series of orders to buy the DIPs at different discount prices
+
+More Description here
+`,
+		Flags: []cli.Flag{
+			&cli.Float64Flag{
+				Name:     "budget",
+				Usage:    "Budget to allocate for the DIPs, set to 0 to allocate all of the available budget",
+				EnvVars:  []string{"STACKER_BTD_BUDGET"},
+				Required: true,
 			},
-			Action: func(c *cli.Context) error {
-				var err error
-				result, err = ex.Withdraw(c.String("address"), c.Float64("max-fee"), c.Bool("dry-run"))
-
-				action = "withdraw"
-
-				if err != nil {
-					return cli.Exit(err, 1)
-				}
-
-				return nil
+			&cli.Int64Flag{
+				Name:    "dip-percentage",
+				Value:   10,
+				Usage:   "Initial percentage of the firt dip, the other values will be calculated",
+				EnvVars: []string{"STACKER_BTD_DIP_PERCENTAGE"},
+			},
+			&cli.Int64Flag{
+				Name:    "dip-increments",
+				Value:   5,
+				Usage:   "Increment of dip percentage for each order",
+				EnvVars: []string{"STACKER_BTD_DIP_INCREMENTS_PERCENTAGE"},
+			},
+			&cli.Int64Flag{
+				Name:    "n-orders",
+				Value:   5,
+				Usage:   "Number of DIPS orders to place",
+				EnvVars: []string{"STACKER_BTD_DIP_N_ORDERS"},
+			},
+			&cli.Int64Flag{
+				Name:    "high-price-days-modifier",
+				Value:   7,
+				Hidden:  true,
+				Usage:   "Days behind to use to detect max-price",
+				EnvVars: []string{"STACKER_BTD_HIGH_PRICE_DAYS"},
+			},
+			&cli.Int64Flag{
+				Name:    "high-price-gap-percentage",
+				Value:   5,
+				Usage:   "Gap between current price and high price to trigger modifier",
+				EnvVars: []string{"STACKER_BTD_HIGH_PRICE_GAP_PERCENTAGE"},
+			},
+			&cli.StringFlag{
+				Name:     "fiat",
+				Usage:    "Fiat to exchange",
+				EnvVars:  []string{"STACKER_BTD_FIAT"},
+				Required: true,
 			},
 		},
+		Action: func(c *cli.Context) error {
+			action = "btd"
+
+			var err error
+
+			err = ex.Init(c)
+			if err != nil {
+				return cli.Exit(err, 1)
+			}
+
+			result, err = ex.BuyTheDips(c)
+			if err != nil {
+				return cli.Exit(err, 1)
+			}
+
+			return nil
+		},
+	}
+
+	withdrawCommand := cli.Command{
+		Name:        "withdraw",
+		Usage:       "Withdraw some sats",
+		Description: "Withdraw some sats from full description",
+		Flags: []cli.Flag{
+			&cli.Float64Flag{
+				Name:     "max-fee",
+				Usage:    "Max fee in percentage, only withdraw if the relative fee does not exceed this limit",
+				EnvVars:  []string{"STACKER_WITHDRAW_MAX_FEE"},
+				Required: true,
+			},
+			&cli.StringFlag{
+				Name:     "address",
+				Usage:    "Address to withdraw to, the actual value will depend on the exchange selected",
+				EnvVars:  []string{"STACKER_WITHDRAW_ADDRESS"},
+				Required: true,
+			},
+		},
+		Action: func(c *cli.Context) error {
+			action = "withdraw"
+			var err error
+
+			err = ex.Init(c)
+			if err != nil {
+				return cli.Exit(err, 1)
+			}
+
+			result, err = ex.Withdraw(c)
+			if err != nil {
+				return cli.Exit(err, 1)
+			}
+
+			return nil
+		},
+	}
+
+	allCommands := []*cli.Command{
+		&stackCommand,
+		&buyTheDipsCommand,
+		&withdrawCommand,
 	}
 
 	app := &cli.App{
@@ -215,7 +290,7 @@ func main() {
 		Usage:     "stack and withdraw sats",
 		UsageText: usage,
 		Flags:     append(flags, notifierFlags...),
-		Commands:  append(stackCommand, withdrawCommand...),
+		Commands:  allCommands,
 		Before: func(c *cli.Context) error {
 
 			if c.Bool("debug") {
@@ -233,7 +308,7 @@ func main() {
 				return cli.Exit("Only supported exchange are ['kraken', 'binance']", 1)
 			}
 
-			err := ex.Config(c.String("api-key"), c.String("secret-key"))
+			err := ex.Config(c)
 			if err != nil {
 				return cli.Exit(fmt.Sprintf("Error Configuring the Exchange Plugin: %s", err), 1)
 			}
