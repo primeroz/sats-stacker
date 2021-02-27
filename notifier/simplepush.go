@@ -1,7 +1,6 @@
 package notifier
 
 import (
-	//"errors"
 	"github.com/simplepush/simplepush-go"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
