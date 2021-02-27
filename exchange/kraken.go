@@ -3,7 +3,7 @@ package exchange
 import (
 	"errors"
 	"fmt"
-	"github.com/primeroz/kraken-go-api-client"
+	"github.com/beldur/kraken-go-api-client"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"math/big"
