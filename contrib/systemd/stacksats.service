@@ -1,0 +1,14 @@
+[Unit]
+Description=DCA on Kraken
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/docker kill stacksats
+ExecStartPre=-/usr/bin/docker rm stacksats
+ExecStart=/usr/bin/docker run --rm --name stacksats --env-file /etc/stackingsats/env  --entrypoint /sats-stacker/sats-stacker primeroz/sats-stacker:latest stack
+
+# Only enable if you want to withdraw
+#TimeoutStopSec=60
+#ExecStop=/usr/bin/docker run --rm --name stacksats --env-file /etc/stackingsats/env  --entrypoint /sats-stacker/sats-stacker primeroz/sats-stacker:latest withdraw
