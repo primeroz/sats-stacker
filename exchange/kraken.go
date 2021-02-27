@@ -197,9 +197,8 @@ func (k *Kraken) createOrderArgs(c *cli.Context, volume float64, price string, l
 }
 
 func (k *Kraken) BuyTheDips(c *cli.Context) (result string, e error) {
-	// TODO: Handle cancel only mode and do not cancel orders in that case so we might get the orders ?
-	// TODO: Support Dollar Dip Average mode - only buy if not bought today
-	// TODO: Add modifier support for weekly gap from high price
+	// TODO Handle cancel only mode from Kraken
+	// TODO Add modifier to customize drift from high price
 	k.UserRef = 300
 
 	log.WithFields(logrus.Fields{

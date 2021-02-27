@@ -13,11 +13,12 @@ import (
 	"sats-stacker/notifier"
 )
 
-// Variable to hold global
+// Global Variables
 var log = logrus.New()
 var ex exchange.Exchange
 var nf notifier.Notifier
 
+// TODO Use a struct for result and set action inside of it rather than use 2 string variables
 var result string
 var action string
 
@@ -45,9 +46,7 @@ func init() {
 
 func main() {
 	usage := `
-		a cli-tool to stack, and withdraw, sats on exchanges.
-
-		more information on usage will follow
+		a cli-tool to stack sats on exchanges.
 `
 
 	flags := []cli.Flag{
@@ -127,7 +126,7 @@ func main() {
 	stackCommand := cli.Command{
 		Name:        "stack",
 		Usage:       "Stack some sats",
-		Description: "Stack some sats full description",
+		Description: "Stack some sats at market value, best used for DCA (Dollar Cost Averaging)",
 		Flags: []cli.Flag{
 			&cli.Float64Flag{
 				Name:     "amount",
@@ -147,11 +146,13 @@ func main() {
 
 			var err error
 
+			// Initialize the exchange plugin
 			err = ex.Init(c)
 			if err != nil {
 				return cli.Exit(err, 1)
 			}
 
+			// Stack sats on the exchange selected
 			result, err = ex.Stack(c)
 			if err != nil {
 				return cli.Exit(err, 1)
