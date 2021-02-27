@@ -32,8 +32,7 @@ func (s *SimplePush) Config(c *cli.Context) error {
 func (s *SimplePush) Notify(title string, message string) (e error) {
 
 	log.WithFields(logrus.Fields{
-		"action":   "notify",
-		"notifier": s.Name,
+		"action": "notify",
 	}).Debug("Notifying using " + s.Name)
 
 	msg := simplepush.Message{

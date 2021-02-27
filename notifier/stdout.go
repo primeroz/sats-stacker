@@ -23,8 +23,7 @@ func (s *Stdout) Config(c *cli.Context) error {
 func (s *Stdout) Notify(title string, message string) (e error) {
 
 	log.WithFields(logrus.Fields{
-		"action":   "notify",
-		"notifier": s.Name,
+		"action": "notify",
 	}).Debug("Notifying using " + s.Name)
 
 	fmt.Printf("\n%s\n\n", title)
