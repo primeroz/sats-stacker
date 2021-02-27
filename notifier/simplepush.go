@@ -1,7 +1,6 @@
 package notifier
 
 import (
-	//"errors"
 	"github.com/simplepush/simplepush-go"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
@@ -33,8 +32,7 @@ func (s *SimplePush) Config(c *cli.Context) error {
 func (s *SimplePush) Notify(title string, message string) (e error) {
 
 	log.WithFields(logrus.Fields{
-		"action":   "notify",
-		"notifier": s.Name,
+		"action": "notify",
 	}).Debug("Notifying using " + s.Name)
 
 	msg := simplepush.Message{

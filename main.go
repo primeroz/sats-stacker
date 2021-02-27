@@ -165,9 +165,7 @@ func main() {
 	buyTheDipsCommand := cli.Command{
 		Name:  "btd",
 		Usage: "Buy the DIPs",
-		Description: `Places a series of orders to buy the DIPs at different discount prices
-
-More Description here
+		Description: `Places a series of orders to buy the DIPs at different discounted prices
 `,
 		Flags: []cli.Flag{
 			&cli.Float64Flag{
@@ -198,7 +196,7 @@ More Description here
 				Name:    "high-price-days-modifier",
 				Value:   7,
 				Hidden:  true,
-				Usage:   "Days behind to use to detect max-price",
+				Usage:   "Days behind to use to detect high-price, used to calculate a modifier to the discount percentage, the higher the gap from the high price the bigger the modifier will be.",
 				EnvVars: []string{"STACKER_BTD_HIGH_PRICE_DAYS"},
 			},
 			&cli.Int64Flag{
@@ -219,11 +217,13 @@ More Description here
 
 			var err error
 
+			// Initialize the exchange plugin
 			err = ex.Init(c)
 			if err != nil {
 				return cli.Exit(err, 1)
 			}
 
+			// Place orders to try and buy DIPS on the exchange selected
 			result, err = ex.BuyTheDips(c)
 			if err != nil {
 				return cli.Exit(err, 1)
@@ -236,7 +236,7 @@ More Description here
 	withdrawCommand := cli.Command{
 		Name:        "withdraw",
 		Usage:       "Withdraw some sats",
-		Description: "Withdraw some sats from full description",
+		Description: "Withdraw some sats from the exchange.",
 		Flags: []cli.Flag{
 			&cli.Float64Flag{
 				Name:     "max-fee",
@@ -255,11 +255,13 @@ More Description here
 			action = "withdraw"
 			var err error
 
+			// Initialize the exchange plugin
 			err = ex.Init(c)
 			if err != nil {
 				return cli.Exit(err, 1)
 			}
 
+			// Withdraw Funds from the exchange selected
 			result, err = ex.Withdraw(c)
 			if err != nil {
 				return cli.Exit(err, 1)
@@ -269,12 +271,14 @@ More Description here
 		},
 	}
 
+	// Group all commands together
 	allCommands := []*cli.Command{
 		&stackCommand,
 		&buyTheDipsCommand,
 		&withdrawCommand,
 	}
 
+	// Initialize the cli app
 	app := &cli.App{
 		Name:     "sats-stacker",
 		Version:  Version,
@@ -308,6 +312,7 @@ More Description here
 				return cli.Exit("Only supported exchange are ['kraken', 'binance']", 1)
 			}
 
+			// Configure the exchange plugin
 			err := ex.Config(c)
 			if err != nil {
 				return cli.Exit(fmt.Sprintf("Error Configuring the Exchange Plugin: %s", err), 1)
@@ -325,6 +330,7 @@ More Description here
 				return cli.Exit("Only supported notifiers are ['stdout', 'simplepush']", 1)
 			}
 
+			// Configure the notification plugin
 			err = nf.Config(c)
 			if err != nil {
 				return cli.Exit(fmt.Sprintf("Error Configuring the Notification Plugin: %s", err), 1)
@@ -333,13 +339,14 @@ More Description here
 			return nil
 		},
 		After: func(c *cli.Context) error {
-			// Notify at the end of the run
+			// Handle notification at the end of the CLI app run
 			title := fmt.Sprintf("%s - %s Sats",
 				strings.Title(c.String("exchange")),
 				strings.Title(action),
 			)
 
 			// Do not notify if result is not set ( for example if the required args where not specified )
+			// TODO Add support for notification on errors
 			if result != "" {
 				err := nf.Notify(title, result)
 
@@ -352,6 +359,7 @@ More Description here
 		},
 	}
 
+	// Run the cli App
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Fatal(err)

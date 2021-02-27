@@ -1,0 +1,15 @@
+# Run on Kraken
+STACKER_EXCHANGE=kraken
+
+# used to authenticate with Kraken
+STACKER_API_KEY=<API_KEY>
+STACKER_API_SECRET=<SECRET_KEY>
+
+# used for buying
+STACKER_BTD_FIAT=EUR
+STACKER_BTD_BUDGET=500
+STACKER_BTD_DIP_PERCENTAGE=4 # Initial Percentage DIP for first order
+STACKER_BTD_DIP_INCREMENTS_PERCENTAGE=4 # Percentage DIP for each incremental order
+STACKER_BTD_DIP_N_ORDERS=5 # Number of Orders to place
+
+STACKER_DRY_RUN=false

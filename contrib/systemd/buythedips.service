@@ -1,0 +1,10 @@
+[Unit]
+Description=Buy The Dip on Kraken
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/docker kill buythedip
+ExecStartPre=-/usr/bin/docker rm buythedip
+ExecStart=/usr/bin/docker run --rm --name buythedip --env-file /etc/stackingsats/env-btd  --entrypoint /sats-stacker/sats-stacker primeroz/sats-stacker:latest btd

@@ -1,0 +1,18 @@
+[Unit]
+Description=DCA on Kraken
+
+[Timer]
+# Weekly Stacking
+#OnCalendar=Sun 10:00
+# Every Few Days stacking
+#OnCalendar=*-*-1,4,7,10,13,16,19,22,25,28,31 10:00:00
+# 4 times a week stacking
+#OnCalendar=Mon,Wed,Fri,Sun 10:00:00
+# Daily Stacking
+OnCalendar=10:00:00
+
+AccuracySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

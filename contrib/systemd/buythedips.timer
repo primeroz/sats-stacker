@@ -1,0 +1,15 @@
+[Unit]
+Description=Buy the dip on Kraken
+
+[Timer]
+#OnCalendar=*:0/15
+#OnCalendar=*:0/30
+#OnCalendar=*:0
+
+# check with `systemd-analyze calendar --iterations=5 "00/2:00"`
+# Run every 2 hours and reset the orders
+OnCalendar=00/2:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
