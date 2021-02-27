@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	//"time"
 )
 
 type Kraken struct {
@@ -30,24 +29,15 @@ type Kraken struct {
 	UserRef       int32
 }
 
+// Minimum amount of BTC in an order
 const MIN_BTC_AMOUNT = 0.0002
 
-//func getTimeInfo() (time.Time, time.Time, time.Duration) {
-//	// Always use the local timezone
-//	loc, _ := time.LoadLocation("Local")
-//
-//	now := time.Now().In(loc)
-//	year, month, day := now.Date()
-//
-//	// Start is TODAY at 00:00
-//	start := time.Date(year, month, day, 0, 0, 0, 0, now.Location())
-//
-//	// END is now
-//	end := now
-//
-//	return start, end, end.Sub(start)
-//}
+// Values to be used calculate discount on price when placing Dips Orders
+// Maximum discount is 40% when price gap between now and Highest is >=25%
+const MAX_DISCOUNT_MODIFIER = 40.0
+const MAX_DISCOUNT_AT_GAP = 25.0
 
+// Configure the Kraken client
 func (k *Kraken) Config(c *cli.Context) error {
 	k.Name = strings.ToTitle("kraken")
 	k.ApiKey = c.String("api-key")
@@ -94,20 +84,21 @@ func (k *Kraken) Init(c *cli.Context) error {
 	return nil
 }
 
-//func (k *Kraken) closedOrderTodayForUserRef(orders *krakenapi.ClosedOrdersResponse, c *cli.Context) (string, krakenapi.Order, error) {
-//
-//	for id, v := range orders.Closed {
-//		if v.Status == "closed" {
-//			return id, v, nil
-//		}
-//	}
-//	return "", krakenapi.Order{}, nil
-//}
-
+// Calculate a price modifier based on the Gap between current price and Highest price in a given time
 func (k *Kraken) priceModifierBasedOnGapFromHighPrice(c *cli.Context) (float64, error) {
 
-	// 15 interval will give a week worth of data
-	ohlcs, err := k.Api.OHLCWithInterval(k.Pair, "15")
+	var OHLCInterval string
+	switch c.Int64("high-price-days-modifier") {
+	// TODO Add support for more OHLC Intervals
+	case 7:
+		// 15 interval will give a week worth of data
+		OHLCInterval = "15"
+	default:
+		// 15 interval will give a week worth of data
+		OHLCInterval = "15"
+	}
+
+	ohlcs, err := k.Api.OHLCWithInterval(k.Pair, OHLCInterval)
 	if err != nil {
 		return 0.0, fmt.Errorf("Failed to get OHLC Data for pair %s: %s", k.Pair, err)
 	}
@@ -120,19 +111,18 @@ func (k *Kraken) priceModifierBasedOnGapFromHighPrice(c *cli.Context) (float64, 
 		}
 	}
 
-	// max modifier is 40% ( applied to the discount price ) when the gap is >= 25%
-	maxDiscountModifier := 40.0
 	var discountModifier float64
-	// Is the highest price from the last week more than GAP PERCENTAGE over the current ask price ?
+	// Is the highest price more than Triggering Gap Percentage over the current ask price ?
 	gapPrice := highest - k.AskFloat
 	if gapPrice > 0 {
 		gapPercentage := gapPrice / highest * 100
 		if gapPercentage > c.Float64("high-price-gap-percentage") {
 
-			// calculate modifier
-			discountModifier = gapPercentage / 25.0 * maxDiscountModifier
-			if discountModifier > maxDiscountModifier {
-				discountModifier = maxDiscountModifier
+			// calculate modifier = current Gap Percentage / Max gap * max discount
+			// capped at MAX_DISCOUNT_MODIFIER
+			discountModifier = gapPercentage / MAX_DISCOUNT_AT_GAP * MAX_DISCOUNT_MODIFIER
+			if discountModifier > MAX_DISCOUNT_MODIFIER {
+				discountModifier = MAX_DISCOUNT_MODIFIER
 			}
 
 			log.WithFields(logrus.Fields{
@@ -152,7 +142,7 @@ func (k *Kraken) priceModifierBasedOnGapFromHighPrice(c *cli.Context) (float64, 
 	return discountModifier, nil
 }
 
-func (k *Kraken) createOrderArgs(c *cli.Context, volume float64, price string, longshot bool) (map[string]string, error) {
+func (k *Kraken) createOrderArgs(c *cli.Context, volume float64, price float64) (map[string]string, error) {
 
 	args := make(map[string]string)
 
@@ -172,8 +162,8 @@ func (k *Kraken) createOrderArgs(c *cli.Context, volume float64, price string, l
 	}
 
 	args["userref"] = fmt.Sprintf("%d", k.UserRef)
-	args["volume"] = strconv.FormatFloat(volume, 'f', 8, 64)
-	args["price"] = price
+	args["volume"] = fmt.Sprintf("%.8f", volume)
+	args["price"] = fmt.Sprintf("%.1f", price)
 	args["oflags"] = "fciq" // "buy" button will actually sell the quote currency in exchange for the base currency, pay fee in the the quote currenty ( fiat )
 
 	// If volume < MIN_BTC_AMOUNT then error - this is the minimum kraken order volume
@@ -218,7 +208,7 @@ func (k *Kraken) BuyTheDips(c *cli.Context) (result string, e error) {
 	}).Debug("Balance before any action is taken")
 
 	// Calculate order values from budget
-	// Each _Unit_ will have the double the value of the unit before
+	// Each order will have double the value (Number of Units) of the previous one
 	var totalOrderUnits int64
 	var fiatValueUnit float64
 
@@ -229,8 +219,6 @@ func (k *Kraken) BuyTheDips(c *cli.Context) (result string, e error) {
 	}
 
 	fiatValueUnit = c.Float64("budget") / float64(totalOrderUnits)
-
-	//var dipOrders []map[string]string
 
 	log.WithFields(logrus.Fields{
 		"action":          "btd",
@@ -246,16 +234,22 @@ func (k *Kraken) BuyTheDips(c *cli.Context) (result string, e error) {
 	var dipOrders []map[string]string
 
 	var orderNumber int64
-	//Calculate DIP Discount for this order
+
+	//Calculate DIP Discount for this orders
 	modifier, err := k.priceModifierBasedOnGapFromHighPrice(c)
 	if err != nil {
+		log.WithFields(logrus.Fields{
+			"action": "btd",
+		}).Debug(fmt.Sprintf("Failed to calculate price modifier - default to 0.0: %s", err))
+
 		modifier = 0.0
 	}
 
 	for orderNumber != c.Int64("n-orders") {
 		// Discount based on order number
 		discount := float64(c.Int64("dip-percentage") + (orderNumber * c.Int64("dip-increments")))
-		// Calculate modifier to apply to discount based on the gap from the Highest Weekly price
+
+		// Calculate modifier to apply to discount based on gap based modifier
 		discountModifier := (float64(discount) * modifier) / float64(100.0)
 		dipDiscountedPrice := (k.AskFloat / float64(100)) * (float64(100.0) - discount + discountModifier)
 		dipVolume := (fiatValueUnit * float64(orderNumber+1)) / dipDiscountedPrice
@@ -270,7 +264,7 @@ func (k *Kraken) BuyTheDips(c *cli.Context) (result string, e error) {
 		}).Debug(fmt.Sprintf("Creating discounted order %d", orderNumber+1))
 
 		// Create Order and add to list
-		dipOrderArgs, _ := k.createOrderArgs(c, dipVolume, fmt.Sprintf("%.1f", dipDiscountedPrice), false)
+		dipOrderArgs, _ := k.createOrderArgs(c, dipVolume, dipDiscountedPrice)
 
 		// If volume < MIN_BTC_AMOUNT then do not add to the list, skip to next iteration
 		if dipVolume < MIN_BTC_AMOUNT {
@@ -374,7 +368,7 @@ func (k *Kraken) Stack(c *cli.Context) (result string, e error) {
 	}).Debug("Balance before placing the Order")
 
 	volume := (c.Float64("amount") / k.AskFloat)
-	orderArgs, err := k.createOrderArgs(c, volume, k.Ask, false)
+	orderArgs, err := k.createOrderArgs(c, volume, k.AskFloat)
 	if err != nil {
 		return "", fmt.Errorf("Failed to create args to place order: %s", err)
 	}
